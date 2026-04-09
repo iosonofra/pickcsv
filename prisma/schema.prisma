@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ImportBatch {
+  id            String        @id @default(cuid())
+  sourceFile    String
+  totalRows     Int           @default(0)
+  skippedRows   Int           @default(0)
+  duplicateRows Int           @default(0)
+  createdAt     DateTime      @default(now())
+  orders        Order[]
+  errors        ImportError[]
+  documents     GeneratedDocument[]
+}
+
+model ImportError {
+  id        String    @id @default(cuid())
+  batchId   String
+  rowNumber Int
+  message   String
+  rawData   String?
+  createdAt DateTime  @default(now())
+  batch     ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  batchId       String
+  orderReference String
+  clientName    String?
+  carrierName   String?
+  notes         String?
+  barcodeValue  String
+  isPrinted     Boolean  @default(false)
+  printedCount  Int      @default(0)
+  lastPrintedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  batch         ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  lines         OrderLine[]
+  documents     GeneratedDocument[]
+
+  @@index([orderReference])
+  @@index([clientName])
+  @@index([carrierName])
+  @@index([createdAt])
+  @@unique([batchId, orderReference])
+}
+
+model OrderLine {
+  id          String  @id @default(cuid())
+  orderId     String
+  productName String?
+  quantity    Int     @default(0)
+  note        String?
+  ean         String?
+  productId   String?
+  createdAt   DateTime @default(now())
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model GeneratedDocument {
+  id         String   @id @default(cuid())
+  type       String
+  batchId    String?
+  orderId    String?
+  fileName   String
+  filePath   String
+  createdAt  DateTime @default(now())
+  batch      ImportBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  order      Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([createdAt])
+}
