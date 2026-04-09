@@ -98,7 +98,8 @@ export function DashboardClient({
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [confirmBulkKind, setConfirmBulkKind] = useState<"orders" | "batches" | null>(null);
   const [importTouched, setImportTouched] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  useEffect(() => { setLastUpdated(new Date()); }, []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const runPreviewImportRef = useRef<() => Promise<void>>(async () => undefined);
   const lastOrderQueryRef = useRef<string>("");
@@ -735,7 +736,7 @@ export function DashboardClient({
           <p className="kpi-value">{kpis.recentErrors}</p>
         </article>
       </section>
-      <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</p>
+      <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) ?? ""}</p>
 
       <div className="tabbar" role="tablist" aria-label="Navigazione dashboard">
         <button className={`tab-button ${activeTab === "home" ? "active" : ""}`} role="tab" type="button" onClick={() => setActiveTab("home")}>
