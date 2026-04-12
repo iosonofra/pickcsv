@@ -82,6 +82,7 @@ export function DashboardClient({
   const [lastAction, setLastAction] = useState<string>("");
   const [undoBatchDeleteIds, setUndoBatchDeleteIds] = useState<string[] | null>(null);
   const undoBatchDeleteTimer = useRef<number | null>(null);
+  const codeTypeLoaded = useRef(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [codeType, setCodeType] = useState<CodeType>("CODE128");
   const [activeTab, setActiveTab] = useState<"home" | "orders">("home");
@@ -674,9 +675,11 @@ export function DashboardClient({
     } catch {
       void 0;
     }
+    codeTypeLoaded.current = true;
   }, []);
 
   useEffect(() => {
+    if (!codeTypeLoaded.current) return;
     try {
       window.localStorage.setItem("picking_code_type", codeType);
     } catch {
