@@ -83,15 +83,7 @@ export function DashboardClient({
   const [undoBatchDeleteIds, setUndoBatchDeleteIds] = useState<string[] | null>(null);
   const undoBatchDeleteTimer = useRef<number | null>(null);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
-  const [codeType, setCodeType] = useState<CodeType>(() => {
-    try {
-      const saved = typeof window !== "undefined" ? window.localStorage.getItem("picking_code_type") : null;
-      if (saved === "QRCODE" || saved === "CODE128") return saved;
-    } catch {
-      void 0;
-    }
-    return "CODE128";
-  });
+  const [codeType, setCodeType] = useState<CodeType>("CODE128");
   const [activeTab, setActiveTab] = useState<"home" | "orders">("home");
   const [ordersLoaded, setOrdersLoaded] = useState<boolean>(initialOrders.length > 0);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
@@ -674,6 +666,15 @@ export function DashboardClient({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeTab, importStep, pendingAction]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("picking_code_type");
+      if (saved === "QRCODE" || saved === "CODE128") setCodeType(saved);
+    } catch {
+      void 0;
+    }
+  }, []);
 
   useEffect(() => {
     try {
