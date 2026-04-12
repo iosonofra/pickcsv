@@ -43,8 +43,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
   const [batchPage, setBatchPage] = useState(1);
   const [undoBatchDeleteIds, setUndoBatchDeleteIds] = useState<string[] | null>(null);
   const undoBatchDeleteTimer = useRef<number | null>(null);
-  const codeTypeLoaded = useRef(false);
-  const [codeType, setCodeType] = useState<CodeType>("CODE128");
+  const [codeType, setCodeType] = useState<CodeType>("QRCODE");
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [, startTransition] = useTransition();
 
@@ -294,15 +293,6 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
     codeTypeLoaded.current = true;
   }, []);
 
-  useEffect(() => {
-    if (!codeTypeLoaded.current) return;
-    try {
-      window.localStorage.setItem("picking_code_type", codeType);
-    } catch {
-      void 0;
-    }
-  }, [codeType]);
-
   useEffect(() => () => flushScheduledBatchDelete(), []);
 
   return (
@@ -352,8 +342,10 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
           <button
             className={`chip ${codeType === "CODE128" ? "active" : ""}`}
             type="button"
-            onClick={() => setCodeType("CODE128")}
-            title="Usa barcode lineare Code128"
+            onClick={() => {
+              setCodeType("CODE128");
+              try { window.localStorage.setItem("picking_code_type", "CODE128"); } catch { void 0; }
+            }}
           >
             {codeType === "CODE128" && <span className="chip-check" aria-hidden="true">✓</span>}
             Barcode
@@ -361,8 +353,10 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
           <button
             className={`chip ${codeType === "QRCODE" ? "active" : ""}`}
             type="button"
-            onClick={() => setCodeType("QRCODE")}
-            title="Usa QR code quadrato"
+            onClick={() => {
+              setCodeType("QRCODE");
+              try { window.localStorage.setItem("picking_code_type", "QRCODE"); } catch { void 0; }
+            }}
           >
             {codeType === "QRCODE" && <span className="chip-check" aria-hidden="true">✓</span>}
             QR Code

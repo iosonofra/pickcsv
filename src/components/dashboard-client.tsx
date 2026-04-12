@@ -82,9 +82,8 @@ export function DashboardClient({
   const [lastAction, setLastAction] = useState<string>("");
   const [undoBatchDeleteIds, setUndoBatchDeleteIds] = useState<string[] | null>(null);
   const undoBatchDeleteTimer = useRef<number | null>(null);
-  const codeTypeLoaded = useRef(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
-  const [codeType, setCodeType] = useState<CodeType>("CODE128");
+  const [codeType, setCodeType] = useState<CodeType>("QRCODE");
   const [activeTab, setActiveTab] = useState<"home" | "orders">("home");
   const [ordersLoaded, setOrdersLoaded] = useState<boolean>(initialOrders.length > 0);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
@@ -679,15 +678,6 @@ export function DashboardClient({
   }, []);
 
   useEffect(() => {
-    if (!codeTypeLoaded.current) return;
-    try {
-      window.localStorage.setItem("picking_code_type", codeType);
-    } catch {
-      void 0;
-    }
-  }, [codeType]);
-
-  useEffect(() => {
     try {
       const saved = window.sessionStorage.getItem("picking_last_action");
       if (saved) setLastAction(saved);
@@ -724,7 +714,10 @@ export function DashboardClient({
           <button
             className={`chip ${codeType === "CODE128" ? "active" : ""}`}
             type="button"
-            onClick={() => setCodeType("CODE128")}
+            onClick={() => {
+              setCodeType("CODE128");
+              try { window.localStorage.setItem("picking_code_type", "CODE128"); } catch { void 0; }
+            }}
             title="Usa barcode lineare Code128"
           >
             {codeType === "CODE128" && <span className="chip-check" aria-hidden="true">✓</span>}
@@ -733,7 +726,10 @@ export function DashboardClient({
           <button
             className={`chip ${codeType === "QRCODE" ? "active" : ""}`}
             type="button"
-            onClick={() => setCodeType("QRCODE")}
+            onClick={() => {
+              setCodeType("QRCODE");
+              try { window.localStorage.setItem("picking_code_type", "QRCODE"); } catch { void 0; }
+            }}
             title="Usa QR code quadrato"
           >
             {codeType === "QRCODE" && <span className="chip-check" aria-hidden="true">✓</span>}
