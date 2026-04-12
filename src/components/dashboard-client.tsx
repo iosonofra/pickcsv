@@ -692,7 +692,7 @@ export function DashboardClient({
         <h1 className="title">Picking Logistica</h1>
         <p className="subtitle">Import rapido, stampa batch e storico operativo in un solo flusso.</p>
         <div className="row">
-          <Link className="link" href="/history">
+          <Link className="button secondary" href="/history">
             Apri Storico Batch &gt; 24h
           </Link>
           {latestBatch ? (
@@ -708,11 +708,13 @@ export function DashboardClient({
             <span className="status-inline">Nessun batch disponibile per ristampa</span>
           )}
         </div>
-        <div className="row code-toggle-row">
-          <span className="status-inline">Codice su PDF:</span>
+        <div className="row code-toggle-row" role="radiogroup" aria-label="Tipo codice su PDF">
+          <span className="status-inline" id="code-toggle-label">Codice su PDF:</span>
           <button
             className={`chip ${codeType === "CODE128" ? "active" : ""}`}
             type="button"
+            role="radio"
+            aria-checked={codeType === "CODE128"}
             onClick={() => {
               setCodeType("CODE128");
               try { window.localStorage.setItem("picking_code_type", "CODE128"); } catch { void 0; }
@@ -725,6 +727,8 @@ export function DashboardClient({
           <button
             className={`chip ${codeType === "QRCODE" ? "active" : ""}`}
             type="button"
+            role="radio"
+            aria-checked={codeType === "QRCODE"}
             onClick={() => {
               setCodeType("QRCODE");
               try { window.localStorage.setItem("picking_code_type", "QRCODE"); } catch { void 0; }
@@ -736,6 +740,8 @@ export function DashboardClient({
           </button>
         </div>
       </section>
+
+      {batchesLoading && <p className="status-inline" style={{ textAlign: "center", marginTop: 8 }}>Caricamento dati in corso...</p>}
 
       <section className="kpi-grid">
         <article className="kpi-card">
@@ -751,7 +757,21 @@ export function DashboardClient({
           <p className="kpi-value">{kpis.recentErrors}</p>
         </article>
       </section>
-      <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) ?? ""}</p>
+      <div className="row kpi-updated-row">
+        <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) ?? ""}</p>
+        <button
+          className="button tertiary button-sm"
+          type="button"
+          disabled={batchesLoading}
+          onClick={() => {
+            startTransition(() => {
+              void refreshBatches().catch((err) => setError(err instanceof Error ? err.message : "Errore aggiornamento"));
+            });
+          }}
+        >
+          {batchesLoading ? "Aggiorno..." : "Aggiorna"}
+        </button>
+      </div>
 
       <div className="tabbar" role="tablist" aria-label="Navigazione dashboard">
         <button className={`tab-button ${activeTab === "home" ? "active" : ""}`} role="tab" type="button" onClick={() => setActiveTab("home")}>

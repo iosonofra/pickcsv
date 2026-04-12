@@ -96,9 +96,15 @@ body {
 }
 
 .kpi-updated {
-  margin: 8px 4px 0;
+  margin: 0;
   font-size: 0.72rem;
   color: var(--md-sys-color-on-surface-variant);
+}
+
+.kpi-updated-row {
+  margin: 8px 4px 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .title {

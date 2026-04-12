@@ -336,11 +336,13 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 className="section-title">Storico ({filteredBatches.length})</h2>
         </div>
-        <div className="row code-toggle-row">
+        <div className="row code-toggle-row" role="radiogroup" aria-label="Tipo codice su PDF">
           <span className="status-inline">Codice su PDF:</span>
           <button
             className={`chip ${codeType === "CODE128" ? "active" : ""}`}
             type="button"
+            role="radio"
+            aria-checked={codeType === "CODE128"}
             onClick={() => {
               setCodeType("CODE128");
               try { window.localStorage.setItem("picking_code_type", "CODE128"); } catch { void 0; }
@@ -352,6 +354,8 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
           <button
             className={`chip ${codeType === "QRCODE" ? "active" : ""}`}
             type="button"
+            role="radio"
+            aria-checked={codeType === "QRCODE"}
             onClick={() => {
               setCodeType("QRCODE");
               try { window.localStorage.setItem("picking_code_type", "QRCODE"); } catch { void 0; }
