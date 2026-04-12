@@ -27,6 +27,7 @@ type ActivityEntry = {
 const makeId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 const BATCH_PAGE_SIZE = 8;
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+type CodeType = "CODE128" | "QRCODE";
 
 export function HistoryBatchesClient({ initialBatches }: { initialBatches: BatchItem[] }) {
   const [batches, setBatches] = useState<BatchItem[]>(initialBatches);
@@ -42,6 +43,8 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
   const [batchPage, setBatchPage] = useState(1);
   const [undoBatchDeleteIds, setUndoBatchDeleteIds] = useState<string[] | null>(null);
   const undoBatchDeleteTimer = useRef<number | null>(null);
+  const codeTypeLoaded = useRef(false);
+  const [codeType, setCodeType] = useState<CodeType>("CODE128");
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [, startTransition] = useTransition();
 
@@ -178,6 +181,69 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
     setStatus("Eliminazione annullata.");
   };
 
+  const generateBatch = (batchId: string) => {
+    setError("");
+    setStatus("");
+    setPendingAction(`batch_pdf_${batchId}`);
+    startTransition(() => {
+      void (async () => {
+        try {
+          const res = await fetch("/api/documents/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ batchId, codeType })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error ?? "Errore PDF batch");
+          setStatus(`PDF batch creato: ${data.fileName} (${data.orderCount} ordini).`);
+          pushActivity(`PDF batch generato (${data.orderCount} ordini)`);
+          window.open(data.downloadUrl, "_blank", "noopener,noreferrer");
+          await refreshHistory();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Errore PDF batch");
+        } finally {
+          setPendingAction(null);
+        }
+      })();
+    });
+  };
+
+  const generateSelectedBatches = () => {
+    if (selectedBatchIds.length === 0) {
+      setError("Seleziona almeno un batch da stampare.");
+      return;
+    }
+    setError("");
+    setStatus("");
+    setPendingAction("batch_pdf_many");
+    startTransition(() => {
+      void (async () => {
+        try {
+          let count = 0;
+          for (const batchId of selectedBatchIds) {
+            const r = await fetch("/api/documents/batch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ batchId, codeType })
+            });
+            const d = await r.json();
+            if (r.ok) {
+              window.open(d.downloadUrl, "_blank", "noopener,noreferrer");
+              count++;
+            }
+          }
+          setStatus(`Stampati ${count} batch.`);
+          pushActivity(`Stampa massiva storico (${count} batch)`);
+          await refreshHistory();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Errore stampa batch");
+        } finally {
+          setPendingAction(null);
+        }
+      })();
+    });
+  };
+
   const deleteSingleBatch = (batchId: string) => {
     if (!window.confirm("Confermi eliminazione del batch selezionato?")) {
       return;
@@ -217,6 +283,25 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
     if (batchPage <= totalBatchPages) return;
     setBatchPage(totalBatchPages);
   }, [batchPage, totalBatchPages]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("picking_code_type");
+      if (saved === "QRCODE" || saved === "CODE128") setCodeType(saved);
+    } catch {
+      void 0;
+    }
+    codeTypeLoaded.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!codeTypeLoaded.current) return;
+    try {
+      window.localStorage.setItem("picking_code_type", codeType);
+    } catch {
+      void 0;
+    }
+  }, [codeType]);
 
   useEffect(() => () => flushScheduledBatchDelete(), []);
 
@@ -262,6 +347,27 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 className="section-title">Storico ({filteredBatches.length})</h2>
         </div>
+        <div className="row code-toggle-row">
+          <span className="status-inline">Codice su PDF:</span>
+          <button
+            className={`chip ${codeType === "CODE128" ? "active" : ""}`}
+            type="button"
+            onClick={() => setCodeType("CODE128")}
+            title="Usa barcode lineare Code128"
+          >
+            {codeType === "CODE128" && <span className="chip-check" aria-hidden="true">✓</span>}
+            Barcode
+          </button>
+          <button
+            className={`chip ${codeType === "QRCODE" ? "active" : ""}`}
+            type="button"
+            onClick={() => setCodeType("QRCODE")}
+            title="Usa QR code quadrato"
+          >
+            {codeType === "QRCODE" && <span className="chip-check" aria-hidden="true">✓</span>}
+            QR Code
+          </button>
+        </div>
 
         <div className="row batch-filters-row">
           <input
@@ -294,6 +400,9 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
 
         <div className="sticky-bar command-bar">
           <span>{selectedBatchIds.length > 0 ? `${selectedCount} batch selezionati` : `Mostrati ${visibleBatches.length}/${filteredBatches.length}`}</span>
+          <button className="button secondary" type="button" onClick={generateSelectedBatches} disabled={!!pendingAction || selectedBatchIds.length === 0}>
+            {pendingAction === "batch_pdf_many" ? "Stampo..." : "Stampa selezionati"}
+          </button>
           <button className="button danger" type="button" onClick={deleteSelectedBatches} disabled={pendingAction === "batch_delete_many" || selectedBatchIds.length === 0}>
             {pendingAction === "batch_delete_many" ? "Elimino..." : `Elimina selezionati`}
           </button>
@@ -323,6 +432,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                     <th>File</th>
                     <th>Ordini</th>
                     <th>Stampa</th>
+                    <th>PDF</th>
                     <th>Azioni</th>
                   </tr>
                 </thead>
@@ -345,6 +455,17 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                         ) : (
                           <span className="badge warn">Mai stampato</span>
                         )}
+                      </td>
+                      <td>
+                        <button
+                          className="button secondary"
+                          type="button"
+                          title="Genera PDF per questo batch"
+                          onClick={() => generateBatch(batch.id)}
+                          disabled={!!pendingAction}
+                        >
+                          {pendingAction === `batch_pdf_${batch.id}` ? "Genero..." : "Stampa PDF"}
+                        </button>
                       </td>
                       <td>
                         <div className="row">
@@ -382,7 +503,10 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                         Errori
                       </Link>
                     )}
-                    <button className="button danger" type="button" onClick={() => deleteSingleBatch(batch.id)}>
+                    <button className="button secondary" type="button" onClick={() => generateBatch(batch.id)} disabled={!!pendingAction}>
+                      {pendingAction === `batch_pdf_${batch.id}` ? "Genero..." : "Stampa PDF"}
+                    </button>
+                    <button className="button danger" type="button" onClick={() => deleteSingleBatch(batch.id)} disabled={!!pendingAction}>
                       Elimina
                     </button>
                   </div>
