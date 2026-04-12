@@ -674,7 +674,6 @@ export function DashboardClient({
     } catch {
       void 0;
     }
-    codeTypeLoaded.current = true;
   }, []);
 
   useEffect(() => {

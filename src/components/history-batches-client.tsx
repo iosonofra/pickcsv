@@ -290,7 +290,6 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
     } catch {
       void 0;
     }
-    codeTypeLoaded.current = true;
   }, []);
 
   useEffect(() => () => flushScheduledBatchDelete(), []);
