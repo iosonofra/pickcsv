@@ -19,6 +19,9 @@ npm run dev
 
 Apri [http://localhost:3000](http://localhost:3000).
 
+Puoi configurare il token per l'upload automatico dalla tab `Impostazioni`.
+`AUTO_IMPORT_API_TOKEN` in `.env` resta supportato come fallback.
+
 ## Funzionalita implementate
 
 ### Import Excel
@@ -118,6 +121,7 @@ Apri [http://localhost:3000](http://localhost:3000).
 
 - `POST /api/import/preview` anteprima import `.xlsx` o `.csv`
 - `POST /api/import` conferma import `.xlsx` o `.csv`
+- `POST /api/import/auto` import automatico autenticato `.xlsx` o `.csv` (`Authorization: Bearer <token>`)
 - `GET /api/orders` ricerca ordini con filtri (`search`, `carrier`, `dateFrom`, `dateTo`)
 - `GET /api/orders/:id` dettaglio ordine
 - `DELETE /api/orders/:id` elimina ordine singolo
@@ -134,3 +138,90 @@ Apri [http://localhost:3000](http://localhost:3000).
 - Database: SQLite via Prisma.
 - PDF salvati in: `data/documents`.
 - Storico import/batch/documenti salvato su DB con metadati stampa.
+
+## Upload automatico da Windows
+
+La cartella `tools/windows-sendto` contiene gli script per aggiungere una voce
+nel menu Windows `Invia a`. Il default punta alla web app online:
+`https://pick.iosonofra.click`.
+
+### Configurazione server
+
+Apri la tab `Impostazioni` nella web app, genera o inserisci un token API e
+salvalo. Il token viene usato da `/api/import/auto` per autorizzare gli upload
+da Windows.
+
+In alternativa puoi impostare la variabile ambiente sulla web app:
+
+```bash
+AUTO_IMPORT_API_TOKEN="un-token-lungo-e-segreto"
+```
+
+Per generare un token da PowerShell:
+
+```powershell
+[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+### Installazione su Windows
+
+Da PowerShell, entra nella cartella degli script:
+
+```powershell
+cd C:\pickcsv\tools\windows-sendto
+```
+
+Poi installa il collegamento:
+
+```powershell
+.\install-sendto.ps1 -Token "un-token-lungo-e-segreto"
+```
+
+Usa lo stesso token salvato nella tab `Impostazioni` della web app.
+
+Per puntare a un ambiente locale:
+
+```powershell
+.\install-sendto.ps1 -BaseUrl "http://localhost:3000" -Token "un-token-lungo-e-segreto"
+```
+
+Lo script crea il collegamento per l'utente corrente in:
+`%APPDATA%\Microsoft\Windows\SendTo\Carica su PickCSV.lnk`.
+
+### Uso
+
+1. Verifica che la web app sia raggiungibile.
+2. Fai tasto destro su uno o piu file `.csv`/`.xlsx`.
+3. Seleziona `Invia a` > `Carica su PickCSV`.
+4. Lo script carica ogni file su `/api/import/auto`, mostra batch creato, ordini, scarti e duplicati, e invia una notifica Windows.
+5. Se l'opzione e attiva nella tab `Impostazioni`, dopo un upload riuscito viene aperta automaticamente la dashboard.
+
+I batch caricati da Windows vengono marcati come `Upload automatico` e salvano
+PC sorgente, utente Windows, client id, IP rilevato e data upload.
+
+## Installazione (Installazione pulita / ZIP)
+
+Se hai ricevuto questo codice in un file ZIP o vuoi avviare l'applicazione da zero in un nuovo ambiente:
+
+1. **Estrai l'archivio** in una cartella e apri il terminale al suo interno.
+2. **Copia il file dell'ambiente**: rinomina o copia il file `.env.example` in `.env`.
+3. **Installa le dipendenze**:
+   ```bash
+   npm install
+   ```
+4. **Inizializza il Database**: crea il database SQLite locale e sincronizza lo schema con il comando:
+   ```bash
+   npx prisma db push
+   ```
+5. **Avvia l'applicazione**:
+   - Per provare e sviluppare (sviluppo locale):
+     ```bash
+     npm run dev
+     ```
+   - Per l'uso in produzione:
+     ```bash
+     npm run build
+     npm run start
+     ```
+
+Apri `http://localhost:3000` nel tuo browser per iniziare a usare l'app.

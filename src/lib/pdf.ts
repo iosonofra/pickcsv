@@ -72,9 +72,7 @@ const drawOrderCard = async (
 
   if (codeType === "QRCODE") {
     doc.image(codeBuffer, marginX, y, {
-      fit: [140, 140],
-      align: "left",
-      valign: "top"
+      fit: [140, 140]
     });
     y += 150;
   } else {
@@ -155,8 +153,7 @@ const drawCompactOrderCard = async (
     const qrSize = Math.min(rightWidth, codeBoxHeight);
     doc.image(codeBuffer, rightX + Math.max(0, (rightWidth - qrSize) / 2), codeY, {
       fit: [qrSize, qrSize],
-      align: "center",
-      valign: "top"
+      align: "center"
     });
     cursorY = Math.max(leftY, codeY + qrSize) + 4;
   } else {

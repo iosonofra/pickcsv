@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
+process.env.DATABASE_URL ??= "file:./dev.db";
+
 declare global {
   // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
@@ -19,15 +21,49 @@ let schemaReadyPromise: Promise<void> | null = null;
 
 const ensureSqliteSchemaInternal = async (): Promise<void> => {
   await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "AppSetting" (
+      "key" TEXT NOT NULL PRIMARY KEY,
+      "value" TEXT NOT NULL,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ImportBatch" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "sourceFile" TEXT NOT NULL,
+      "importSource" TEXT NOT NULL DEFAULT 'manual',
+      "autoUploadComputerName" TEXT,
+      "autoUploadUserName" TEXT,
+      "autoUploadClientId" TEXT,
+      "autoUploadIp" TEXT,
+      "autoUploadedAt" DATETIME,
       "totalRows" INTEGER NOT NULL DEFAULT 0,
       "skippedRows" INTEGER NOT NULL DEFAULT 0,
       "duplicateRows" INTEGER NOT NULL DEFAULT 0,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  const importBatchColumns = await prisma.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info("ImportBatch")`);
+  if (!importBatchColumns.some((column) => column.name === "importSource")) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "ImportBatch" ADD COLUMN "importSource" TEXT NOT NULL DEFAULT 'manual'`
+    );
+  }
+  const importBatchColumnNames = new Set(importBatchColumns.map((column) => column.name));
+  const importBatchOptionalColumns = [
+    ["autoUploadComputerName", "TEXT"],
+    ["autoUploadUserName", "TEXT"],
+    ["autoUploadClientId", "TEXT"],
+    ["autoUploadIp", "TEXT"],
+    ["autoUploadedAt", "DATETIME"]
+  ] as const;
+  for (const [columnName, columnType] of importBatchOptionalColumns) {
+    if (!importBatchColumnNames.has(columnName)) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ImportBatch" ADD COLUMN "${columnName}" ${columnType}`);
+    }
+  }
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Order" (

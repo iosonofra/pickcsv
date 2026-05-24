@@ -5,6 +5,12 @@ import { parseOrdersFile } from "@/lib/excel";
 type ImportInput = {
   fileName: string;
   buffer: Buffer;
+  importSource?: "manual" | "auto";
+  autoUploadComputerName?: string;
+  autoUploadUserName?: string;
+  autoUploadClientId?: string;
+  autoUploadIp?: string;
+  autoUploadedAt?: Date;
 };
 
 export const previewOrdersWorkbook = ({ fileName, buffer }: ImportInput) => {
@@ -27,7 +33,16 @@ export const previewOrdersWorkbook = ({ fileName, buffer }: ImportInput) => {
   };
 };
 
-export const importOrdersFromWorkbook = async ({ fileName, buffer }: ImportInput) => {
+export const importOrdersFromWorkbook = async ({
+  fileName,
+  buffer,
+  importSource = "manual",
+  autoUploadComputerName,
+  autoUploadUserName,
+  autoUploadClientId,
+  autoUploadIp,
+  autoUploadedAt
+}: ImportInput) => {
   await ensureDbSchema();
   const parsed = parseOrdersFile(fileName, buffer);
 
@@ -35,6 +50,12 @@ export const importOrdersFromWorkbook = async ({ fileName, buffer }: ImportInput
     const batch = await tx.importBatch.create({
       data: {
         sourceFile: fileName,
+        importSource,
+        autoUploadComputerName,
+        autoUploadUserName,
+        autoUploadClientId,
+        autoUploadIp,
+        autoUploadedAt,
         totalRows: parsed.totalRows,
         skippedRows: parsed.skippedRows,
         duplicateRows: parsed.duplicateRows

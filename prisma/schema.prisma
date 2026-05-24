@@ -10,6 +10,12 @@ datasource db {
 model ImportBatch {
   id            String        @id @default(cuid())
   sourceFile    String
+  importSource  String        @default("manual")
+  autoUploadComputerName String?
+  autoUploadUserName     String?
+  autoUploadClientId     String?
+  autoUploadIp           String?
+  autoUploadedAt         DateTime?
   totalRows     Int           @default(0)
   skippedRows   Int           @default(0)
   duplicateRows Int           @default(0)
@@ -17,6 +23,12 @@ model ImportBatch {
   orders        Order[]
   errors        ImportError[]
   documents     GeneratedDocument[]
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now())
 }
 
 model ImportError {

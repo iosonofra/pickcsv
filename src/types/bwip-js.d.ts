@@ -6,6 +6,8 @@ declare module "bwip-js" {
     height?: number;
     includetext?: boolean;
     textxalign?: "left" | "center" | "right";
+    paddingwidth?: number;
+    paddingheight?: number;
     backgroundcolor?: string;
   };
 

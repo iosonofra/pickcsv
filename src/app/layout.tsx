@@ -1,5 +1,18 @@
 import type { Metadata } from "next";
+import { Inter, Outfit } from "next/font/google";
 import "@/app/globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-inter",
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-outfit",
+});
 
 export const metadata: Metadata = {
   title: "Picking Logistica",
@@ -8,8 +21,28 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it">
+    <html lang="it" className={`${inter.variable} ${outfit.variable} ${inter.className}`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('picking_theme');
+                  var theme = saved === 'dark' ? 'dark' : 'light';
+                  if (theme === 'light') {
+                    document.documentElement.classList.add('light-theme');
+                  } else {
+                    document.documentElement.classList.remove('light-theme');
+                  }
+                } catch (e) {}
+              })()
+            `,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
 }
+
