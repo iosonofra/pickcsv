@@ -1537,8 +1537,13 @@ export function DashboardClient({
               {latestAutoUploadBatch && (
                 <div className={`auto-upload-banner ${isRecentAutoUpload(latestAutoUploadBatch) ? "fresh" : ""}`}>
                   <strong>📥 File caricato automaticamente da Windows</strong>
-                  <span style={{ fontSize: "0.76rem" }}>
-                    Nome: <strong>{latestAutoUploadBatch.sourceFile}</strong> | Ordini: {latestAutoUploadBatch._count.orders} | {getAutoUploadLabel(latestAutoUploadBatch)}
+                  <span style={{ fontSize: "0.76rem", display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: "6px 8px", marginTop: 4 }}>
+                    <span>Nome: <strong>{latestAutoUploadBatch.sourceFile}</strong></span>
+                    <span>|</span>
+                    <span>Ordini: <strong>{latestAutoUploadBatch._count.orders}</strong></span>
+                    <span>|</span>
+                    <span className="badge auto-upload" style={{ padding: "2px 8px", fontSize: "0.68rem" }}>Upload automatico</span>
+                    <span>da {latestAutoUploadBatch.autoUploadComputerName || latestAutoUploadBatch.autoUploadUserName || latestAutoUploadBatch.autoUploadClientId || latestAutoUploadBatch.autoUploadIp || "Windows"} alle {new Date(latestAutoUploadBatch.autoUploadedAt ?? latestAutoUploadBatch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
                   </span>
                 </div>
               )}
@@ -1654,10 +1659,29 @@ export function DashboardClient({
                                   {highlightFileName(batch.sourceFile)}
                                 </span>
                                 {batch.importSource === "auto" && (
-                                  <span style={{ fontSize: "0.72rem", color: "var(--md-on-surface-variant)", opacity: 0.85, fontWeight: 500 }}>
-                                    {getAutoUploadLabel(batch)}
-                                  </span>
-                                )}
+                                   <div 
+                                     style={{ 
+                                       display: "inline-flex", 
+                                       alignItems: "center", 
+                                       gap: "6px", 
+                                       fontSize: "0.7rem", 
+                                       background: "rgba(87, 157, 255, 0.07)", 
+                                       border: "1px solid rgba(87, 157, 255, 0.2)", 
+                                       padding: "2px 8px", 
+                                       borderRadius: "6px", 
+                                       color: "var(--md-primary)", 
+                                       fontWeight: 500, 
+                                       marginTop: "4px",
+                                       width: "fit-content"
+                                     }}
+                                   >
+                                     <span style={{ fontSize: "0.76rem", display: "inline-flex", alignSelf: "center" }}>📥</span>
+                                     <strong style={{ fontWeight: 700 }}>Upload automatico</strong>
+                                     <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
+                                       - {batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"} - {new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                     </span>
+                                   </div>
+                                 )}
                               </div>
                             </td>
                             <td style={{ fontWeight: 700 }}>{batch._count.orders}</td>

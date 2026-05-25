@@ -36,11 +36,15 @@ export default async function BatchDetailPage({ params }: Props) {
   const autoUploadSource =
     batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows";
   const originLabel =
-    batch.importSource === "auto"
-      ? `Origine: Upload automatico da ${autoUploadSource}${
-          batch.autoUploadedAt ? ` (${dayjs(batch.autoUploadedAt).format("DD/MM/YYYY HH:mm")})` : ""
-        }`
-      : "Origine: Importazione manuale da Web";
+    batch.importSource === "auto" ? (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <span>Origine:</span>
+        <span className="badge auto-upload" style={{ padding: "2px 8px", fontSize: "0.72rem" }}>Upload automatico</span>
+        <span>da {autoUploadSource}{batch.autoUploadedAt ? ` (${dayjs(batch.autoUploadedAt).format("DD/MM/YYYY HH:mm")})` : ""}</span>
+      </span>
+    ) : (
+      <span>Origine: Importazione manuale da Web</span>
+    );
 
   return (
     <div className="app-container">
