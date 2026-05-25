@@ -2,6 +2,70 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
+
+type DebouncedInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  title?: string;
+};
+
+export function DebouncedInput({
+  value,
+  onChange,
+  placeholder,
+  className,
+  style,
+  title
+}: DebouncedInputProps) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onChange(localValue);
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [localValue, onChange]);
+
+  return (
+    <input
+      className={className}
+      placeholder={placeholder}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      style={style}
+      title={title}
+    />
+  );
+}
+
+const OrderDrawerContent = dynamic(() => import("./order-drawer-content"), {
+  loading: () => (
+    <div className="skeleton-table">
+      <div className="skeleton-row" />
+      <div className="skeleton-row" />
+      <div className="skeleton-row" />
+    </div>
+  )
+});
+
+const BatchDrawerContent = dynamic(() => import("./batch-drawer-content"), {
+  loading: () => (
+    <div className="skeleton-table">
+      <div className="skeleton-row" />
+      <div className="skeleton-row" />
+      <div className="skeleton-row" />
+    </div>
+  )
+});
+
 
 type OrderItem = {
   id: string;
@@ -88,6 +152,8 @@ export function DashboardClient({
   const [batchSort, setBatchSort] = useState<"recent" | "print" | "orders" | "status" | "source">("recent");
   const [batchStatusFilter, setBatchStatusFilter] = useState<"all" | "new" | "printed" | "errors" | "auto">("all");
   const [batchPage, setBatchPage] = useState(1);
+  const [orderPage, setOrderPage] = useState(1);
+  const ORDER_PAGE_SIZE = 15;
   const [status, setStatus] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [lastAction, setLastAction] = useState<string>("");
@@ -279,6 +345,29 @@ export function DashboardClient({
     const next = new Set(selectedBatchIds);
     visibleBatches.forEach((batch) => next.add(batch.id));
     setSelectedBatchIds(Array.from(next));
+  };
+
+  const totalOrderPages = useMemo(() => Math.max(1, Math.ceil(orders.length / ORDER_PAGE_SIZE)), [orders.length]);
+
+  const visibleOrders = useMemo(() => {
+    const start = (orderPage - 1) * ORDER_PAGE_SIZE;
+    return orders.slice(start, start + ORDER_PAGE_SIZE);
+  }, [orders, orderPage]);
+
+  const allVisibleOrdersSelected = useMemo(
+    () => visibleOrders.length > 0 && visibleOrders.every((o) => selectedOrderIds.includes(o.id)),
+    [visibleOrders, selectedOrderIds]
+  );
+
+  const toggleAllVisibleOrders = () => {
+    if (allVisibleOrdersSelected) {
+      const visibleSet = new Set(visibleOrders.map((o) => o.id));
+      setSelectedOrderIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+      return;
+    }
+    const next = new Set(selectedOrderIds);
+    visibleOrders.forEach((o) => next.add(o.id));
+    setSelectedOrderIds(Array.from(next));
   };
 
   const rememberLastAction = (message: string) => {
@@ -884,6 +973,15 @@ export function DashboardClient({
   }, [batchPage, totalBatchPages]);
 
   useEffect(() => {
+    setOrderPage(1);
+  }, [search, carrier, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (orderPage <= totalOrderPages) return;
+    setOrderPage(totalOrderPages);
+  }, [orderPage, totalOrderPages]);
+
+  useEffect(() => {
     if (activeTab !== "orders" || ordersLoaded) return;
     startTransition(() => {
       void refreshOrders().catch((err) => setError(err instanceof Error ? err.message : "Errore caricamento ordini"));
@@ -1446,11 +1544,11 @@ export function DashboardClient({
               )}
 
               <div className="row batch-filters-row">
-                <input
+                <DebouncedInput
                   className="input"
                   placeholder="Cerca file batch..."
                   value={batchSearch}
-                  onChange={(e) => setBatchSearch(e.target.value)}
+                  onChange={setBatchSearch}
                   style={{ flex: 1 }}
                 />
                 <select className="select" value={batchSort} onChange={(e) => setBatchSort(e.target.value as any)}>
@@ -1544,7 +1642,7 @@ export function DashboardClient({
                               />
                             </td>
                             <td>
-                              <div className="batch-file-cell">
+                              <div className="batch-file-cell" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                                 <span 
                                   title={batch.sourceFile} 
                                   style={{ 
@@ -1555,7 +1653,11 @@ export function DashboardClient({
                                 >
                                   {highlightFileName(batch.sourceFile)}
                                 </span>
-                                {batch.importSource === "auto" && <span className="badge auto-upload" style={{ fontSize: "0.65rem", padding: "2px 6px" }}>Auto-uploaded</span>}
+                                {batch.importSource === "auto" && (
+                                  <span style={{ fontSize: "0.72rem", color: "var(--md-on-surface-variant)", opacity: 0.85, fontWeight: 500 }}>
+                                    {getAutoUploadLabel(batch)}
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td style={{ fontWeight: 700 }}>{batch._count.orders}</td>
@@ -1708,11 +1810,11 @@ export function DashboardClient({
                       <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
                   </span>
-                  <input 
+                  <DebouncedInput 
                     className="input filter-input-with-icon" 
                     placeholder="Riferimento ordine o cliente..." 
                     value={search} 
-                    onChange={(e) => setSearch(e.target.value)} 
+                    onChange={setSearch} 
                   />
                 </div>
 
@@ -1803,14 +1905,8 @@ export function DashboardClient({
                           <input
                             aria-label="Seleziona tutti gli ordini"
                             type="checkbox"
-                            checked={orders.length > 0 && selectedOrderIds.length === orders.length}
-                            onChange={() => {
-                              if (selectedOrderIds.length === orders.length) {
-                                setSelectedOrderIds([]);
-                              } else {
-                                setSelectedOrderIds(orders.map((o) => o.id));
-                              }
-                            }}
+                            checked={visibleOrders.length > 0 && visibleOrders.every((o) => selectedOrderIds.includes(o.id))}
+                            onChange={toggleAllVisibleOrders}
                           />
                         </th>
                         <th>Riferimento</th>
@@ -1822,7 +1918,7 @@ export function DashboardClient({
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map((order) => (
+                      {visibleOrders.map((order) => (
                         <tr key={order.id}>
                           <td>
                             <input
@@ -1915,6 +2011,23 @@ export function DashboardClient({
                       ))}
                     </tbody>
                   </table>
+
+                  <div className="row pagination-row" style={{ marginTop: 16 }}>
+                    <button className="button tertiary button-sm" type="button" onClick={() => setOrderPage((prev) => Math.max(1, prev - 1))} disabled={orderPage === 1}>
+                      Precedente
+                    </button>
+                    <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
+                      Pagina {orderPage} di {totalOrderPages}
+                    </span>
+                    <button
+                      className="button tertiary button-sm"
+                      type="button"
+                      onClick={() => setOrderPage((prev) => Math.min(totalOrderPages, prev + 1))}
+                      disabled={orderPage === totalOrderPages}
+                    >
+                      Successiva
+                    </button>
+                  </div>
                 </div>
               )}
             </section>
@@ -2247,198 +2360,15 @@ export function DashboardClient({
             {!drawerLoading && !drawerError && drawerData && (
               <>
                 {activeDrawer?.type === "order" && (
-                  <>
-                    <div className="bottom-sheet-section">
-                      <h4 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 8 }}>Informazioni Logistiche</h4>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", fontSize: "0.82rem", background: "rgba(255,255,255,0.02)", padding: "16px", borderRadius: "12px", border: "1px solid var(--md-outline-variant)" }}>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Riferimento Ordine:</span>
-                          <p style={{ margin: "4px 0 0", fontWeight: 800, fontSize: "0.95rem" }}>{drawerData.orderReference}</p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Cliente:</span>
-                          <p style={{ margin: "4px 0 0", fontWeight: 600 }}>{drawerData.clientName ?? "-"}</p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Corriere:</span>
-                          <p style={{ margin: "4px 0 0", fontWeight: 600 }}>{drawerData.carrierName ?? "-"}</p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Stato di Stampa:</span>
-                          <p style={{ margin: "4px 0 0" }}>
-                            {drawerData.isPrinted ? (
-                              <span className="badge good">Stampato x{drawerData.printedCount}</span>
-                            ) : (
-                              <span className="badge warn">Da stampare</span>
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Codice a barre (EAN):</span>
-                          <p style={{ margin: "4px 0 0", fontFamily: "monospace", fontSize: "0.82rem" }}>{drawerData.barcodeValue ?? "-"}</p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Creato il:</span>
-                          <p style={{ margin: "4px 0 0" }}>{new Date(drawerData.createdAt).toLocaleString("it-IT")}</p>
-                        </div>
-                      </div>
-                      
-                      {drawerData.notes && (
-                        <div style={{ marginTop: 8, padding: 12, borderRadius: 10, background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)", fontSize: "0.8rem" }}>
-                          <strong style={{ color: "var(--color-warning)" }}>Note Operatore:</strong>
-                          <p style={{ margin: "4px 0 0", color: "#fff" }}>{drawerData.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="bottom-sheet-section">
-                      <h4 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 8 }}>Articoli in Ordine ({drawerData.lines?.length ?? 0})</h4>
-                      <div className="table-wrap" style={{ marginTop: 0 }}>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Descrizione Prodotto</th>
-                              <th style={{ width: "80px" }}>Qta</th>
-                              <th>EAN</th>
-                              <th>ID Articolo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {drawerData.lines?.map((line: any) => (
-                              <tr key={line.id}>
-                                <td style={{ fontWeight: 600 }}>{line.productName ?? "-"}</td>
-                                <td style={{ fontWeight: 700 }}>{line.quantity} pz.</td>
-                                <td style={{ fontFamily: "monospace", fontSize: "0.78rem" }}>{line.ean ?? "-"}</td>
-                                <td style={{ fontSize: "0.78rem" }}>{line.productId ?? "-"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    
-                    <div className="drawer-section">
-                      <h4 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 8 }}>Storico File PDF Generati</h4>
-                      {drawerData.documents?.length === 0 ? (
-                        <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: 0 }}>Nessun documento PDF generato per questo ordine.</p>
-                      ) : (
-                        <div className="table-wrap" style={{ marginTop: 0 }}>
-                          <table>
-                            <thead>
-                              <tr>
-                                <th>Nome File</th>
-                                <th>Ora Creazione</th>
-                                <th></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {drawerData.documents?.map((doc: any) => (
-                                <tr key={doc.id}>
-                                  <td style={{ fontSize: "0.78rem" }}>{doc.fileName}</td>
-                                  <td style={{ fontSize: "0.78rem" }}>{new Date(doc.createdAt).toLocaleTimeString("it-IT")}</td>
-                                  <td style={{ textAlign: "right" }}>
-                                    <a className="link" href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer">
-                                      Apri PDF
-                                    </a>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </>
+                  <OrderDrawerContent drawerData={drawerData} />
                 )}
                 
                 {activeDrawer?.type === "batch" && (
-                  <>
-                    <div className="bottom-sheet-section">
-                      <h4 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 8 }}>Riepilogo Importazione</h4>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", fontSize: "0.82rem", background: "rgba(255,255,255,0.02)", padding: "16px", borderRadius: "12px", border: "1px solid var(--md-outline-variant)" }}>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>File Elaborato:</span>
-                          <p style={{ margin: "4px 0 0", fontWeight: 700 }}>{drawerData.sourceFile}</p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Canale Upload:</span>
-                          <p style={{ margin: "4px 0 0" }}>
-                            {drawerData.importSource === "auto" ? (
-                              <span className="badge auto-upload">Upload Automatico (SendTo)</span>
-                            ) : (
-                              <span className="badge secondary">Caricamento Manuale Web</span>
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Ordini Importati:</span>
-                          <p style={{ margin: "4px 0 0", fontWeight: 600 }}>{drawerData._count?.orders ?? 0} ordini inseriti</p>
-                        </div>
-                        <div>
-                          <span style={{ color: "var(--color-text-muted)" }}>Data Operazione:</span>
-                          <p style={{ margin: "4px 0 0" }}>{new Date(drawerData.createdAt).toLocaleString("it-IT")}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bottom-sheet-section">
-                      <h4 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 8 }}>Errori e Record Invalidi ({drawerData.errors?.length ?? 0})</h4>
-                      {drawerData.errors?.length === 0 ? (
-                        <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: 0 }}>Nessun errore riscontrato durante l&apos;importazione.</p>
-                      ) : (
-                        <div className="table-wrap" style={{ marginTop: 0 }}>
-                          <table>
-                            <thead>
-                              <tr>
-                                <th style={{ width: "60px" }}>Riga</th>
-                                <th>Dettaglio Errore</th>
-                                <th>Contenuto Riga Originale</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {drawerData.errors?.map((err: any) => (
-                                <tr key={err.id}>
-                                  <td style={{ fontWeight: 800 }}>{err.rowNumber}</td>
-                                  <td style={{ color: "var(--color-error)", fontWeight: 500 }}>{err.message}</td>
-                                  <td style={{ position: "relative" }}>
-                                    <div className="row" style={{ justifyItems: "center", flexWrap: "nowrap", gap: 8 }}>
-                                      <span 
-                                        className="raw-data-text" 
-                                        title={err.rawData}
-                                        style={{ fontFamily: "monospace", fontSize: "0.72rem", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}
-                                      >
-                                        {err.rawData ?? "-"}
-                                      </span>
-                                      {err.rawData && (
-                                        <button
-                                          type="button"
-                                          className="button tertiary button-sm copy-row-btn"
-                                          title="Copia riga originale"
-                                          style={{ minHeight: "26px", padding: "2px 8px", fontSize: "0.7rem", borderRadius: "6px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-                                          onClick={() => handleCopyRow(err.id, err.rawData)}
-                                        >
-                                          {copiedRowId === err.id ? (
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
-                                              <polyline points="20 6 9 17 4 12" />
-                                            </svg>
-                                          ) : (
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
-                                              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                                              <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-                                            </svg>
-                                          )}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </>
+                  <BatchDrawerContent
+                    drawerData={drawerData}
+                    copiedRowId={copiedRowId}
+                    onCopyRow={handleCopyRow}
+                  />
                 )}
               </>
             )}

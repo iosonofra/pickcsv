@@ -32,8 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var theme = saved === 'dark' ? 'dark' : 'light';
                   if (theme === 'light') {
                     document.documentElement.classList.add('light-theme');
+                    document.documentElement.style.backgroundColor = '#FFFFFF';
+                    document.documentElement.style.color = '#091E42';
                   } else {
                     document.documentElement.classList.remove('light-theme');
+                    document.documentElement.style.backgroundColor = '#091E42';
+                    document.documentElement.style.color = '#DFE1E6';
                   }
                 } catch (e) {}
               })()

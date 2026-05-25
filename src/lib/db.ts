@@ -133,6 +133,13 @@ const ensureSqliteSchemaInternal = async (): Promise<void> => {
     )
   `);
 
+  const genDocColumns = await prisma.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info("GeneratedDocument")`);
+  if (!genDocColumns.some((column) => column.name === "codeType")) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "GeneratedDocument" ADD COLUMN "codeType" TEXT NOT NULL DEFAULT 'CODE128'`
+    );
+  }
+
   await prisma.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "Order_batchId_orderReference_key" ON "Order"("batchId", "orderReference")`
   );

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ensureDbSchema, prisma } from "@/lib/db";
@@ -40,13 +41,39 @@ export async function POST(req: Request) {
 
     const batchId = payload.batchId ?? orders[0].batchId;
     const codeType = (payload.codeType ?? "CODE128") as PdfCodeType;
+
+    // Check if batch is cached (only cache when a full batch is requested, not custom orderIds list)
+    if (payload.batchId) {
+      const cachedDoc = await prisma.generatedDocument.findFirst({
+        where: {
+          batchId: payload.batchId,
+          type: "BATCH",
+          codeType: codeType
+        },
+        orderBy: {
+          createdAt: "desc"
+        }
+      });
+
+      if (cachedDoc && fs.existsSync(cachedDoc.filePath)) {
+        return NextResponse.json({
+          documentId: cachedDoc.id,
+          fileName: cachedDoc.fileName,
+          downloadUrl: `/api/documents/${cachedDoc.id}/download`,
+          orderCount: orders.length,
+          cached: true
+        });
+      }
+    }
+
     const { fileName, filePath } = await generateBatchPdf(orders, batchId, codeType);
     const created = await prisma.generatedDocument.create({
       data: {
         type: "BATCH",
         batchId,
         fileName,
-        filePath
+        filePath,
+        codeType
       }
     });
 
