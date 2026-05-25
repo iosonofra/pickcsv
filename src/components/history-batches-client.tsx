@@ -685,7 +685,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                         <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleziona tutti i batch storici" />
                       </th>
                       <th>File</th>
-                      <th style={{ width: "70px" }}>Ordini</th>
+                      <th style={{ width: "70px", textAlign: "center" }}>Ordini</th>
                       <th>Stampa</th>
                       <th>PDF</th>
                       <th style={{ textAlign: "right" }}>Azioni</th>
@@ -719,19 +719,24 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                                   color: "var(--md-primary)", 
                                   fontWeight: 500, 
                                   marginTop: "4px",
-                                  width: "fit-content"
+                                  width: "fit-content",
+                                  whiteSpace: "nowrap"
                                 }}
                               >
-                                <span style={{ fontSize: "0.76rem", display: "inline-flex", alignSelf: "center" }}>📥</span>
-                                <strong style={{ fontWeight: 700 }}>Upload automatico</strong>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 11, height: 11, color: "var(--md-primary)", flexShrink: 0 }}>
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                  <polyline points="7 10 12 15 17 10" />
+                                  <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                <strong>Upload automatico</strong>
                                 <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
-                                  - {batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"} - {new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                  &nbsp;{batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"}&nbsp;{new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
                                 </span>
                               </div>
                             )}
                           </div>
                         </td>
-                        <td style={{ fontWeight: 700 }}>{batch._count.orders}</td>
+                        <td style={{ fontWeight: 700, textAlign: "center" }}>{batch._count.orders}</td>
                         <td>
                           {batch.batchPrintCount > 0 ? (
                             <span className="badge good">Stampato x{batch.batchPrintCount}</span>
