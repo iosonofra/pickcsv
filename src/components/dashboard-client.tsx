@@ -191,6 +191,13 @@ export function DashboardClient({
   const [autoImportOpenDashboard, setAutoImportOpenDashboard] = useState(false);
   const [copyCommandStatus, setCopyCommandStatus] = useState("");
   const [settingsLoading, setSettingsLoading] = useState(false);
+  
+  // Stati Gestione Backup Database
+  const [backupEnabled, setBackupEnabled] = useState<boolean>(true);
+  const [lastBackupTime, setLastBackupTime] = useState<string | null>(null);
+  const [backupsList, setBackupsList] = useState<any[]>([]);
+  const [backupActionLoading, setBackupActionLoading] = useState<boolean>(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const runPreviewImportRef = useRef<() => Promise<void>>(async () => undefined);
   const lastOrderQueryRef = useRef<string>("");
@@ -547,6 +554,123 @@ export function DashboardClient({
       setAutoImportOpenDashboard(Boolean(data.openDashboard));
     } finally {
       setSettingsLoading(false);
+    }
+  };
+
+  const loadBackupSettings = async () => {
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/settings/backup");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore caricamento backup");
+      }
+      setBackupEnabled(Boolean(data.enabled));
+      setLastBackupTime(data.lastBackup || null);
+      setBackupsList(Array.isArray(data.backups) ? data.backups : []);
+    } catch (err) {
+      console.error("Errore caricamento backup:", err);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleBackupToggle = async (enabled: boolean) => {
+    setBackupEnabled(enabled);
+    try {
+      const res = await fetch("/api/settings/backup", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore salvataggio impostazioni backup");
+      }
+      pushActivity(`Backup automatico ${enabled ? "abilitato" : "disabilitato"}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore salvataggio impostazioni backup");
+      setBackupEnabled(!enabled); // ripristina stato precedente
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    setBackupActionLoading(true);
+    setError("");
+    setStatus("");
+    try {
+      const res = await fetch("/api/settings/backup", {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore esecuzione backup");
+      }
+      setLastBackupTime(data.lastBackup || null);
+      setBackupsList(Array.isArray(data.backups) ? data.backups : []);
+      setStatus("Backup del database SQLite completato con successo!");
+      pushActivity("Backup database manuale eseguito");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossibile completare il backup");
+    } finally {
+      setBackupActionLoading(false);
+    }
+  };
+
+  const handleDeleteBackup = async (filename: string) => {
+    if (!window.confirm(`Sei sicuro di voler eliminare permanentemente il backup "${filename}"?`)) {
+      return;
+    }
+    setBackupActionLoading(true);
+    setError("");
+    setStatus("");
+    try {
+      const res = await fetch(`/api/settings/backup?file=${encodeURIComponent(filename)}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore eliminazione backup");
+      }
+      setBackupsList(Array.isArray(data.backups) ? data.backups : []);
+      setStatus(`Backup ${filename} eliminato.`);
+      pushActivity(`Backup ${filename} eliminato`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossibile eliminare il backup");
+    } finally {
+      setBackupActionLoading(false);
+    }
+  };
+
+  const handleRestoreBackup = async (filename: string) => {
+    if (
+      !window.confirm(
+        `ATTENZIONE: Sei sicuro di voler ripristinare il database dal backup "${filename}"?\nTutti i dati correnti (ordini, lotti, impostazioni) verranno sovrascritti permanentemente e l'applicazione verrà ricaricata.`
+      )
+    ) {
+      return;
+    }
+    setBackupActionLoading(true);
+    setError("");
+    setStatus("");
+    try {
+      const res = await fetch("/api/settings/backup/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore ripristino database");
+      }
+      setStatus("Database ripristinato con successo! Ricaricamento in corso...");
+      pushActivity(`Database ripristinato dal backup ${filename}`);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossibile ripristinare il backup");
+      setBackupActionLoading(false);
     }
   };
 
@@ -990,8 +1114,11 @@ export function DashboardClient({
   }, [activeTab, ordersLoaded]);
 
   useEffect(() => {
-    if (activeTab !== "settings" || autoImportTokenConfigured !== null) return;
-    void loadAutoImportSettings().catch((err) => setError(err instanceof Error ? err.message : "Errore caricamento impostazioni"));
+    if (activeTab !== "settings") return;
+    if (autoImportTokenConfigured === null) {
+      void loadAutoImportSettings().catch((err) => setError(err instanceof Error ? err.message : "Errore caricamento impostazioni"));
+    }
+    void loadBackupSettings().catch((err) => console.error("Errore caricamento backup:", err));
   }, [activeTab, autoImportTokenConfigured]);
 
   useEffect(() => {
@@ -2360,6 +2487,150 @@ export function DashboardClient({
                     </div>
                   </button>
                 </div>
+              </div>
+            </section>
+
+            {/* Scheda Gestione Backup Database SQLite */}
+            <section className="card">
+              <h2 className="section-title" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, color: "var(--color-primary)" }}>
+                  <ellipse cx="12" cy="5" rx="9" ry="3" />
+                  <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+                  <path d="M3 12A9 3 0 0 0 21 12" />
+                </svg>
+                Backup Database SQLite
+              </h2>
+              <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: "0 0 16px 0" }}>
+                Gestisci e scarica le copie di sicurezza del database per prevenire perdite accidentali di dati durante aggiornamenti, migrazioni o operazioni git pull.
+              </p>
+
+              <label className="toggle-row" style={{ marginTop: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={backupEnabled}
+                  onChange={(e) => void handleBackupToggle(e.target.checked)}
+                />
+                <span>Consenti backup automatico del database locale ogni 24 ore</span>
+              </label>
+
+              <div style={{ marginTop: 20, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", borderRadius: "8px", backgroundColor: "var(--color-bg-alt)", border: "1px solid var(--color-border-dim)" }}>
+                <div>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, display: "block" }}>Ultimo backup eseguito</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    {lastBackupTime ? (
+                      <>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12, color: "var(--color-text-dim)" }}>
+                          <circle cx="12" cy="12" r="10" />
+                          <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        {new Date(lastBackupTime).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      </>
+                    ) : (
+                      "Nessun backup registrato su questo dispositivo"
+                    )}
+                  </span>
+                </div>
+                <button
+                  className="button good button-sm"
+                  type="button"
+                  disabled={backupActionLoading}
+                  onClick={handleCreateBackup}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                >
+                  {backupActionLoading ? (
+                    "Creazione..."
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      Esegui backup ora
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div style={{ marginTop: 24 }}>
+                <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: 12, color: "var(--color-text)" }}>
+                  Copie di Sicurezza Disponibili ({backupsList.length} di 10)
+                </h3>
+
+                {backupsList.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "24px 0", color: "var(--color-text-dim)", fontSize: "0.85rem", backgroundColor: "var(--color-bg-alt)", borderRadius: "8px", border: "1px dashed var(--color-border-dim)" }}>
+                    Nessun file di backup presente. Clicca su &quot;Esegui backup ora&quot; per iniziare.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: "auto", border: "1px solid var(--color-border-dim)", borderRadius: "8px" }}>
+                    <table className="table" style={{ width: "100%", margin: 0, borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "var(--color-bg-alt)", borderBottom: "1px solid var(--color-border-dim)" }}>
+                          <th style={{ fontSize: "0.75rem", padding: "10px 12px", textAlign: "left" }}>File di Backup</th>
+                          <th style={{ fontSize: "0.75rem", padding: "10px 12px", textAlign: "left", width: "140px" }}>Data Creazione</th>
+                          <th style={{ fontSize: "0.75rem", padding: "10px 12px", textAlign: "left", width: "90px" }}>Dimensione</th>
+                          <th style={{ fontSize: "0.75rem", padding: "10px 12px", textAlign: "right", width: "100px" }}>Azioni</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {backupsList.map((backup) => (
+                          <tr key={backup.filename} style={{ borderBottom: "1px solid var(--color-border-dim)" }} className="table-row-hover">
+                            <td style={{ fontSize: "0.8rem", padding: "10px 12px", fontWeight: 500, fontFamily: "monospace" }}>
+                              {backup.filename}
+                            </td>
+                            <td style={{ fontSize: "0.78rem", padding: "10px 12px", color: "var(--color-text-muted)" }}>
+                              {new Date(backup.createdAt).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </td>
+                            <td style={{ fontSize: "0.78rem", padding: "10px 12px", color: "var(--color-text-muted)" }}>
+                              {backup.sizeFormatted}
+                            </td>
+                            <td style={{ fontSize: "0.8rem", padding: "10px 12px", textAlign: "right" }}>
+                              <div style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end" }}>
+                                <a
+                                  className="button secondary button-sm"
+                                  href={`/api/settings/backup/download?file=${encodeURIComponent(backup.filename)}`}
+                                  download
+                                  title="Scarica file di backup"
+                                  style={{ padding: "4px 8px", minWidth: "auto", display: "inline-flex", alignItems: "center" }}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                  </svg>
+                                </a>
+                                <button
+                                  className="button secondary button-sm"
+                                  type="button"
+                                  disabled={backupActionLoading}
+                                  onClick={() => void handleRestoreBackup(backup.filename)}
+                                  title="Ripristina database da questo backup"
+                                  style={{ padding: "4px 8px", minWidth: "auto", display: "inline-flex", alignItems: "center", color: "#eab308" }}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                                    <polyline points="23 4 23 10 17 10" />
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                                  </svg>
+                                </button>
+                                <button
+                                  className="button danger secondary button-sm"
+                                  type="button"
+                                  disabled={backupActionLoading}
+                                  onClick={() => void handleDeleteBackup(backup.filename)}
+                                  title="Elimina backup"
+                                  style={{ padding: "4px 8px", minWidth: "auto", display: "inline-flex", alignItems: "center", color: "var(--color-danger)" }}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </section>
           </div>

@@ -5,6 +5,8 @@ process.env.DATABASE_URL ??= "file:./dev.db";
 declare global {
   // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
+  // eslint-disable-next-line no-var
+  var __backupChecked: boolean | undefined;
 }
 
 export const prisma =
@@ -160,4 +162,20 @@ export const ensureDbSchema = async (): Promise<void> => {
     schemaReadyPromise = ensureSqliteSchemaInternal();
   }
   await schemaReadyPromise;
+
+  // Esegue un controllo non bloccante in background una sola volta all'avvio dell'applicazione
+  // L'import dinamico evita dipendenze circolari all'avvio tra db.ts e backup.ts
+  if (typeof window === "undefined" && !global.__backupChecked) {
+    global.__backupChecked = true;
+    import("@/lib/backup")
+      .then(({ checkAndRunBackup }) => {
+        void checkAndRunBackup().catch((err) => {
+          console.error("[Backup] Errore nel controllo del backup di sottofondo:", err);
+        });
+      })
+      .catch((err) => {
+        console.error("[Backup] Impossibile caricare il modulo di backup:", err);
+      });
+  }
 };
+

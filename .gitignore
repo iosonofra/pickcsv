@@ -35,6 +35,7 @@ next-env.d.ts
 # SQLite Database (exclude local data)
 prisma/*.db
 prisma/*.db-journal
+prisma/backups/
 
 # Uploaded data (exclude files but keep the directory)
 data/documents/*
