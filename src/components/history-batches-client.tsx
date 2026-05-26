@@ -684,11 +684,11 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                       <th style={{ width: "36px" }}>
                         <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Seleziona tutti i batch storici" />
                       </th>
-                      <th>File</th>
-                      <th style={{ width: "70px", textAlign: "center" }}>Ordini</th>
-                      <th>Stampa</th>
-                      <th>PDF</th>
-                      <th style={{ textAlign: "right" }}>Azioni</th>
+                      <th style={{ width: "100%" }}>File</th>
+                      <th style={{ width: "90px", textAlign: "center" }}>Ordini</th>
+                      <th style={{ width: "120px", textAlign: "center" }}>Stampa</th>
+                      <th style={{ width: "80px", textAlign: "center" }}>PDF</th>
+                      <th style={{ width: "120px", textAlign: "right" }}>Azioni</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -708,8 +708,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                               style={{ 
                                 fontWeight: 600,
                                 display: "inline-block",
-                                whiteSpace: "normal",
-                                wordBreak: "break-all",
+                                whiteSpace: "nowrap",
                                 verticalAlign: "middle"
                               }}
                             >

@@ -1782,10 +1782,10 @@ export function DashboardClient({
                               onChange={toggleAllVisibleBatches}
                             />
                           </th>
-                          <th>File</th>
-                          <th style={{ width: "70px", textAlign: "center" }}>Ordini</th>
-                          <th>Stato</th>
-                          <th></th>
+                          <th style={{ width: "100%" }}>File</th>
+                          <th style={{ width: "80px", textAlign: "center" }}>Ordini</th>
+                          <th style={{ width: "130px", textAlign: "center" }}>Stato</th>
+                          <th style={{ width: "230px" }}></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1805,8 +1805,7 @@ export function DashboardClient({
                                   style={{ 
                                     fontWeight: 600, 
                                     display: "inline-block", 
-                                    whiteSpace: "normal",
-                                    wordBreak: "break-all",
+                                    whiteSpace: "nowrap",
                                     verticalAlign: "middle"
                                   }}
                                 >
