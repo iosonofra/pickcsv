@@ -176,6 +176,7 @@ export function DashboardClient({
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "order" | "batch" | "bulk-orders" | "bulk-batches"; id?: string } | null>(null);
   const [importTouched, setImportTouched] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isStatsExpanded, setIsStatsExpanded] = useState<boolean>(false);
   
   // Drawer States
   const [activeDrawer, setActiveDrawer] = useState<DrawerState>(null);
@@ -1048,6 +1049,17 @@ export function DashboardClient({
 
   useEffect(() => {
     try {
+      const saved = window.localStorage.getItem("picking_stats_expanded");
+      if (saved !== null) {
+        setIsStatsExpanded(saved === "true");
+      }
+    } catch {
+      void 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
       const saved = window.sessionStorage.getItem("picking_last_action");
       if (saved) setLastAction(saved);
     } catch {
@@ -1236,83 +1248,224 @@ export function DashboardClient({
         {/* LOADING INDICATOR */}
         {activeTab === "home" && batchesLoading && <p className="status-inline" style={{ textAlign: "center", marginBottom: 16 }}>Aggiornamento dati in corso...</p>}
 
-        {/* KPI MODULE */}
-        {activeTab === "home" && (
-          <>
-            <section className="kpi-grid">
-              <article className="kpi-card">
-                <div className="kpi-icon batches" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
-                    <line x1="18" y1="20" x2="18" y2="10" />
-                    <line x1="12" y1="20" x2="12" y2="4" />
-                    <line x1="6" y1="20" x2="6" y2="14" />
-                  </svg>
+        {/* RECENT ACTIVITIES & STATISTICS COMPONENT */}
+        {activeTab !== "settings" && (
+          <details 
+            className="activity-card" 
+            open={isStatsExpanded}
+            onToggle={(e) => {
+              const nextOpen = e.currentTarget.open;
+              setIsStatsExpanded(nextOpen);
+              try {
+                window.localStorage.setItem("picking_stats_expanded", String(nextOpen));
+              } catch {
+                void 0;
+              }
+            }}
+          >
+            <summary 
+              className="activity-summary" 
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between", 
+                width: "100%", 
+                flexWrap: "wrap", 
+                gap: "8px" 
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>Attività Recente e Statistiche</span>
+                {activeTab === "home" && kpis.recentErrors > 0 && (
+                  <span className="error-dot-pulse" title="Ci sono errori attivi!" />
+                )}
+              </div>
+              
+              {!isStatsExpanded && activeTab === "home" && (
+                <div 
+                  className="summary-badges-preview" 
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "0.74rem",
+                    fontWeight: 500,
+                    marginLeft: "auto",
+                    color: "var(--md-on-surface-variant)"
+                  }}
+                >
+                  <span className="badge-preview-item" style={{ background: "var(--md-surface-container-high)", padding: "2px 8px", borderRadius: "6px", border: "1px solid var(--md-outline-variant)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    📦 {kpis.recentBatches} <span style={{ opacity: 0.8 }}>Batch</span>
+                  </span>
+                  <span className="badge-preview-item" style={{ background: "var(--md-surface-container-high)", padding: "2px 8px", borderRadius: "6px", border: "1px solid var(--md-outline-variant)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    🛒 {kpis.recentOrders} <span style={{ opacity: 0.8 }}>Ordini</span>
+                  </span>
+                  <span className="badge-preview-item" style={{
+                    background: kpis.recentErrors > 0 ? "var(--md-error-container)" : "var(--md-surface-container-high)",
+                    color: kpis.recentErrors > 0 ? "var(--md-error)" : "inherit",
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                    border: `1px solid ${kpis.recentErrors > 0 ? "rgba(239, 68, 68, 0.2)" : "var(--md-outline-variant)"}`,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    ⚠️ {kpis.recentErrors} <span style={{ opacity: 0.8 }}>{kpis.recentErrors === 1 ? "Errore" : "Errori"}</span>
+                  </span>
                 </div>
-                <div className="kpi-body">
-                  <p className="kpi-label">Batch Recenti</p>
-                  <p className="kpi-value">{kpis.recentBatches}</p>
-                </div>
-              </article>
-              <article className="kpi-card">
-                <div className="kpi-icon orders" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
-                    <polyline points="21 8 21 21 3 21 3 8" />
-                    <rect x="1" y="3" width="22" height="5" rx="1" />
-                    <line x1="10" y1="12" x2="14" y2="12" />
-                  </svg>
-                </div>
-                <div className="kpi-body">
-                  <p className="kpi-label">Ordini in Coda (24h)</p>
-                  <p className="kpi-value">{kpis.recentOrders}</p>
-                </div>
-              </article>
-              <article className="kpi-card">
-                <div className="kpi-icon errors" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                </div>
-                <div className="kpi-body">
-                  <p className="kpi-label">Errori</p>
-                  <p className="kpi-value" style={{ color: kpis.recentErrors > 0 ? "var(--color-error)" : "inherit" }}>{kpis.recentErrors}</p>
-                </div>
-              </article>
-            </section>
-            
-            <div className="kpi-updated-row">
-              <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) ?? ""}</p>
-              <button
-                className="button tertiary button-sm"
-                type="button"
-                disabled={batchesLoading}
-                onClick={() => {
-                  startTransition(() => {
-                    void refreshBatches().catch((err) => setError(err instanceof Error ? err.message : "Errore aggiornamento"));
-                  });
-                }}
-              >
-                {batchesLoading ? "Aggiorno..." : "Aggiorna ora"}
-              </button>
-            </div>
-          </>
-        )}
+              )}
 
-        {/* RECENT ACTIVITIES COMPONENT */}
-        <details className="activity-card">
-          <summary className="activity-summary">Attività operative recenti</summary>
-          {activities.length === 0 ? (
-            <p className="status-inline" style={{ margin: 0 }}>Nessuna attività registrata in questa sessione.</p>
-          ) : (
-            <ul className="activity-list">
-              {activities.map((a) => (
-                <li key={a.id}>{`${a.message} - ${a.createdAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</li>
-              ))}
-            </ul>
-          )}
-          {lastAction && <p className="status-inline activity-last-action">Ultima azione confermata: {lastAction}</p>}
-        </details>
+              {!isStatsExpanded && activeTab === "orders" && (
+                <div 
+                  className="summary-badges-preview" 
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "0.74rem",
+                    fontWeight: 500,
+                    marginLeft: "auto",
+                    color: "var(--md-on-surface-variant)"
+                  }}
+                >
+                  <span className="badge-preview-item" style={{ background: "var(--md-surface-container-high)", padding: "2px 8px", borderRadius: "6px", border: "1px solid var(--md-outline-variant)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    🔍 {orders.length} <span style={{ opacity: 0.8 }}>Trovati</span>
+                  </span>
+                  <span className="badge-preview-item" style={{ background: "var(--md-surface-container-high)", padding: "2px 8px", borderRadius: "6px", border: "1px solid var(--md-outline-variant)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    🖨️ {orders.filter(o => !o.isPrinted).length} <span style={{ opacity: 0.8 }}>Da Stampare</span>
+                  </span>
+                  <span className="badge-preview-item" style={{ background: "var(--md-surface-container-high)", padding: "2px 8px", borderRadius: "6px", border: "1px solid var(--md-outline-variant)", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    📋 {orders.reduce((sum, o) => sum + o._count.lines, 0)} <span style={{ opacity: 0.8 }}>Righe</span>
+                  </span>
+                </div>
+              )}
+            </summary>
+            
+            {/* HOME KPI MODULE */}
+            {activeTab === "home" && (
+              <div style={{ marginTop: "16px", marginBottom: "16px" }}>
+                <section className="kpi-grid" style={{ marginBottom: "16px" }}>
+                  <article className="kpi-card">
+                    <div className="kpi-icon batches" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                        <line x1="18" y1="20" x2="18" y2="10" />
+                        <line x1="12" y1="20" x2="12" y2="4" />
+                        <line x1="6" y1="20" x2="6" y2="14" />
+                      </svg>
+                    </div>
+                    <div className="kpi-body">
+                      <p className="kpi-label">Batch Recenti</p>
+                      <p className="kpi-value">{kpis.recentBatches}</p>
+                    </div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-icon orders" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                        <polyline points="21 8 21 21 3 21 3 8" />
+                        <rect x="1" y="3" width="22" height="5" rx="1" />
+                        <line x1="10" y1="12" x2="14" y2="12" />
+                      </svg>
+                    </div>
+                    <div className="kpi-body">
+                      <p className="kpi-label">Ordini in Coda (24h)</p>
+                      <p className="kpi-value">{kpis.recentOrders}</p>
+                    </div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-icon errors" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    </div>
+                    <div className="kpi-body">
+                      <p className="kpi-label">Errori</p>
+                      <p className="kpi-value" style={{ color: kpis.recentErrors > 0 ? "var(--color-error)" : "inherit" }}>{kpis.recentErrors}</p>
+                    </div>
+                  </article>
+                </section>
+                
+                <div className="kpi-updated-row" style={{ marginBottom: "16px" }}>
+                  <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) ?? ""}</p>
+                  <button
+                    className="button tertiary button-sm"
+                    type="button"
+                    disabled={batchesLoading}
+                    onClick={() => {
+                      startTransition(() => {
+                        void refreshBatches().catch((err) => setError(err instanceof Error ? err.message : "Errore aggiornamento"));
+                      });
+                    }}
+                  >
+                    {batchesLoading ? "Aggiorno..." : "Aggiorna ora"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ORDERS KPI MODULE */}
+            {activeTab === "orders" && (
+              <div style={{ marginTop: "16px", marginBottom: "16px" }}>
+                <section className="kpi-grid" style={{ marginBottom: "16px" }}>
+                  <article className="kpi-card">
+                    <div className="kpi-icon orders" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center", background: "var(--color-primary-glow)", border: "1px solid rgba(87, 157, 255, 0.15)" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: "var(--md-primary)" }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <line x1="9" y1="3" x2="9" y2="21" />
+                      </svg>
+                    </div>
+                    <div className="kpi-body">
+                      <p className="kpi-label">Ordini Trovati</p>
+                      <p className="kpi-value">{orders.length}</p>
+                    </div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-icon errors" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center", background: "var(--md-warning-container)", border: "1px solid rgba(255, 196, 0, 0.15)" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: "var(--md-warning)" }}>
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                        <rect x="6" y="14" width="12" height="8" />
+                      </svg>
+                    </div>
+                    <div className="kpi-body">
+                      <p className="kpi-label">Da Stampare</p>
+                      <p className="kpi-value">{orders.filter(o => !o.isPrinted).length}</p>
+                    </div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-icon batches" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center", background: "var(--md-success-container)", border: "1px solid rgba(76, 156, 108, 0.15)" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: "var(--md-success)" }}>
+                        <rect x="3" y="3" width="7" height="9" />
+                        <rect x="14" y="3" width="7" height="5" />
+                        <rect x="14" y="12" width="7" height="9" />
+                        <rect x="3" y="16" width="7" height="5" />
+                      </svg>
+                    </div>
+                    <div className="kpi-body">
+                      <p className="kpi-label">Righe Totali</p>
+                      <p className="kpi-value">{orders.reduce((sum, o) => sum + o._count.lines, 0)}</p>
+                    </div>
+                  </article>
+                </section>
+              </div>
+            )}
+
+            <div style={{ borderTop: "1px solid var(--md-outline-variant)", paddingTop: "16px", marginTop: "12px" }}>
+              <p className="field-label" style={{ marginBottom: "8px", fontSize: "0.8rem", fontWeight: 700, color: "var(--md-on-surface-variant)", marginTop: 0 }}>Attività Recenti Sessione</p>
+              {activities.length === 0 ? (
+                <p className="status-inline" style={{ margin: 0 }}>Nessuna attività registrata in questa sessione.</p>
+              ) : (
+                <ul className="activity-list">
+                  {activities.map((a) => (
+                    <li key={a.id}>{`${a.message} - ${a.createdAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</li>
+                  ))}
+                </ul>
+              )}
+              {lastAction && <p className="status-inline activity-last-action" style={{ marginTop: "8px" }}>Ultima azione confermata: {lastAction}</p>}
+            </div>
+          </details>
+        )}
 
         {/* TOAST SYSTEM */}
         <div className="toast-stack" aria-live="polite" aria-atomic="true">
@@ -1649,11 +1802,12 @@ export function DashboardClient({
                             <td>
                               <div className="batch-file-cell" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                                 <span 
-                                  title={batch.sourceFile} 
                                   style={{ 
                                     fontWeight: 600, 
                                     display: "inline-block", 
-                                    whiteSpace: "nowrap" 
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-all",
+                                    verticalAlign: "middle"
                                   }}
                                 >
                                   {highlightFileName(batch.sourceFile)}
@@ -1678,8 +1832,8 @@ export function DashboardClient({
                                    >
                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 11, height: 11, color: "var(--md-primary)", flexShrink: 0 }}>
                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                       <polyline points="7 10 12 15 17 10" />
-                                       <line x1="12" y1="15" x2="12" y2="3" />
+                                       <polyline points="17 8 12 3 7 8" />
+                                       <line x1="12" y1="3" x2="12" y2="15" />
                                      </svg>
                                      <strong>Upload automatico</strong>
                                      <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
@@ -1702,6 +1856,21 @@ export function DashboardClient({
                             </td>
                             <td>
                               <div className="action-group">
+                                {batch._count.errors > 0 && (
+                                  <button 
+                                    className="action-btn errors-btn" 
+                                    type="button" 
+                                    onClick={() => setActiveDrawer({ type: "batch", id: batch.id })}
+                                    title="Visualizza errori"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
+                                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                      <line x1="12" y1="9" x2="12" y2="13" />
+                                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    Errori
+                                  </button>
+                                )}
                                 <button
                                   className="action-btn pdf-btn"
                                   onClick={() => generateBatch(batch.id)}
@@ -1722,21 +1891,6 @@ export function DashboardClient({
                                     </>
                                   )}
                                 </button>
-                                {batch._count.errors > 0 && (
-                                  <button 
-                                    className="action-btn errors-btn" 
-                                    type="button" 
-                                    onClick={() => setActiveDrawer({ type: "batch", id: batch.id })}
-                                    title="Visualizza errori"
-                                  >
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
-                                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                                      <line x1="12" y1="9" x2="12" y2="13" />
-                                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                                    </svg>
-                                    Errori
-                                  </button>
-                                )}
                                 <button
                                   className="action-btn delete-btn"
                                   type="button"
@@ -1784,49 +1938,6 @@ export function DashboardClient({
         {/* TAB 2: ORDINI IMPORTATI */}
         {activeTab === "orders" && (
           <div className="grid orders-grid">
-            {/* ORDERS SPECIFIC KPI MODULE (M3) */}
-            <section className="kpi-grid" style={{ marginBottom: 0 }}>
-              <article className="kpi-card">
-                <div className="kpi-icon orders" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center", background: "var(--color-primary-glow)", border: "1px solid rgba(87, 157, 255, 0.15)" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: "var(--md-primary)" }}>
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <line x1="9" y1="3" x2="9" y2="21" />
-                  </svg>
-                </div>
-                <div className="kpi-body">
-                  <p className="kpi-label">Ordini Trovati</p>
-                  <p className="kpi-value">{orders.length}</p>
-                </div>
-              </article>
-              <article className="kpi-card">
-                <div className="kpi-icon errors" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center", background: "var(--md-warning-container)", border: "1px solid rgba(255, 196, 0, 0.15)" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: "var(--md-warning)" }}>
-                    <polyline points="6 9 6 2 18 2 18 9" />
-                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                    <rect x="6" y="14" width="12" height="8" />
-                  </svg>
-                </div>
-                <div className="kpi-body">
-                  <p className="kpi-label">Da Stampare</p>
-                  <p className="kpi-value">{orders.filter(o => !o.isPrinted).length}</p>
-                </div>
-              </article>
-              <article className="kpi-card">
-                <div className="kpi-icon batches" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center", background: "var(--md-success-container)", border: "1px solid rgba(76, 156, 108, 0.15)" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20, color: "var(--md-success)" }}>
-                    <rect x="3" y="3" width="7" height="9" />
-                    <rect x="14" y="3" width="7" height="5" />
-                    <rect x="14" y="12" width="7" height="9" />
-                    <rect x="3" y="16" width="7" height="5" />
-                  </svg>
-                </div>
-                <div className="kpi-body">
-                  <p className="kpi-label">Righe Totali</p>
-                  <p className="kpi-value">{orders.reduce((sum, o) => sum + o._count.lines, 0)}</p>
-                </div>
-              </article>
-            </section>
-
             {/* FILTERS PANEL */}
             <section className="card">
               <h2 className="section-title">Filtra Ordini</h2>
