@@ -31,7 +31,6 @@ export async function GET(req: Request) {
     const fileStream = fs.createReadStream(filePath);
 
     // Convertiamo lo Stream in ReadableStream per Next.js Response
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stream = new ReadableStream({
       start(controller) {
         fileStream.on("data", (chunk) => controller.enqueue(chunk));

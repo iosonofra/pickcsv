@@ -1111,7 +1111,9 @@ export function DashboardClient({
     startTransition(() => {
       void refreshOrders().catch((err) => setError(err instanceof Error ? err.message : "Errore caricamento ordini"));
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, ordersLoaded]);
+
 
   useEffect(() => {
     if (activeTab !== "settings") return;
@@ -1137,7 +1139,9 @@ export function DashboardClient({
       });
     }, 220);
     return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, ordersLoaded, search, carrier, dateFrom, dateTo]);
+
 
   useEffect(() => {
     if (ordersLoaded) return;
@@ -1149,7 +1153,9 @@ export function DashboardClient({
     return () => {
       void id;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordersLoaded]);
+
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
