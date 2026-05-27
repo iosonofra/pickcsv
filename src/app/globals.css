@@ -3119,14 +3119,13 @@ tr:hover .copy-row-btn {
   color: currentColor;
   display: inline-block;
   vertical-align: middle;
-  will-change: transform;
-  transform: translateZ(0);
-  animation: upload-bounce 2.4s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity;
+  animation: upload-pulse 3.2s infinite ease-in-out;
 }
 
-@keyframes upload-bounce {
-  0%, 100% { transform: translateY(0) translateZ(0); }
-  50% { transform: translateY(-2.5px) translateZ(0); }
+@keyframes upload-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 
 
