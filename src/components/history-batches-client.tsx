@@ -795,7 +795,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    })}
                   </tbody>
                 </table>
               </div>
