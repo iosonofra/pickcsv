@@ -2032,8 +2032,9 @@ export function DashboardClient({
                               </div>
                             </td>
                           </tr>
-                        })}
-                      </tbody>
+                        );
+                      })}
+                    </tbody>
                     </table>
                   </div>
 
