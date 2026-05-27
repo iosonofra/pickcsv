@@ -121,9 +121,11 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
       if (savedTheme === "light") {
         setTheme("light");
         document.documentElement.classList.add("light-theme");
+        document.cookie = "picking_theme=light; path=/; max-age=31536000; SameSite=Lax";
       } else {
         setTheme("dark");
         document.documentElement.classList.remove("light-theme");
+        document.cookie = "picking_theme=dark; path=/; max-age=31536000; SameSite=Lax";
       }
     } catch {
       void 0;
@@ -135,6 +137,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
     setTheme(nextTheme);
     try {
       window.localStorage.setItem("picking_theme", nextTheme);
+      document.cookie = `picking_theme=${nextTheme}; path=/; max-age=31536000; SameSite=Lax`;
       if (nextTheme === "light") {
         document.documentElement.classList.add("light-theme");
         pushActivity("Tema chiaro attivato");

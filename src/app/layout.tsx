@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Outfit } from "next/font/google";
+import { cookies } from "next/headers";
 import "@/app/globals.css";
 
 const inter = Inter({
@@ -20,15 +21,23 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = cookies();
+  const savedTheme = cookieStore.get("picking_theme")?.value;
+  const isLight = savedTheme !== "dark"; // Default to light theme
+
   return (
-    <html lang="it" className={`${inter.variable} ${outfit.variable} ${inter.className}`} suppressHydrationWarning>
+    <html
+      lang="it"
+      className={`${inter.variable} ${outfit.variable} ${inter.className} ${isLight ? "light-theme" : ""}`}
+      suppressHydrationWarning
+    >
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var saved = localStorage.getItem('picking_theme');
+                  var saved = localStorage.getItem('picking_theme') || (document.cookie.match(/picking_theme=([^;]+)/) || [])[1];
                   var theme = saved === 'dark' ? 'dark' : 'light';
                   if (theme === 'light') {
                     document.documentElement.classList.add('light-theme');
