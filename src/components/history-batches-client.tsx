@@ -646,19 +646,13 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
             <button className={`chip ${batchStatusFilter === "auto" ? "active" : ""}`} type="button" onClick={() => setBatchStatusFilter("auto")}>Automatici</button>
           </div>
 
-          <div className="sticky-bar" style={{ marginTop: 15, padding: "10px 14px" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>
-              {selectedBatchIds.length > 0 ? `${selectedCount} batch selezionati` : `Mostrati ${visibleBatches.length}/${filteredBatches.length}`}
-            </span>
-            <div className="row" style={{ gap: 8 }}>
-              <button className="button secondary button-sm" type="button" onClick={generateSelectedBatches} disabled={!!pendingAction || selectedBatchIds.length === 0}>
-                {pendingAction === "batch_pdf_many" ? "Elaborazione..." : "Stampa selezionati"}
-              </button>
-              <button className="button danger button-sm" type="button" onClick={() => deleteSelectedBatches()} disabled={pendingAction === "batch_delete_many" || selectedBatchIds.length === 0}>
-                {pendingAction === "batch_delete_many" ? "Eliminazione..." : "Elimina selezionati"}
-              </button>
+          {selectedBatchIds.length === 0 && (
+            <div className="sticky-bar" style={{ marginTop: 15, padding: "10px 14px" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>
+                Mostrati {visibleBatches.length}/{filteredBatches.length}
+              </span>
             </div>
-          </div>
+          )}
 
           {isLoading ? (
             <div className="skeleton-table">
@@ -695,60 +689,49 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleBatches.map((batch) => (
-                      <tr key={batch.id}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={selectedBatchIds.includes(batch.id)}
-                            onChange={() => toggleBatch(batch.id)}
-                            aria-label={`Seleziona batch storico ${batch.sourceFile}`}
-                          />
-                        </td>
-                        <td>
-                          <div className="batch-file-cell" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span 
-                              style={{ 
-                                fontWeight: 600,
-                                display: "inline-block",
-                                whiteSpace: "nowrap",
-                                verticalAlign: "middle"
-                              }}
-                            >
-                              {highlightFileName(batch.sourceFile)}
-                            </span>
-                            {batch.importSource === "auto" && (
-                              <div 
+                    {visibleBatches.map((batch) => {
+                      const isAuto = batch.importSource === "auto";
+                      return (
+                        <tr
+                          key={batch.id}
+                          className={`auto-batch-row ${isAuto ? "is-auto" : ""}`}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedBatchIds.includes(batch.id)}
+                              onChange={() => toggleBatch(batch.id)}
+                              aria-label={`Seleziona batch storico ${batch.sourceFile}`}
+                            />
+                          </td>
+                          <td>
+                            <div className="batch-file-cell" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <span 
                                 style={{ 
-                                  display: "inline-flex", 
-                                  alignItems: "center", 
-                                  gap: "6px", 
-                                  fontSize: "0.7rem", 
-                                  background: "rgba(87, 157, 255, 0.07)", 
-                                  border: "1px solid rgba(87, 157, 255, 0.2)", 
-                                  padding: "2px 8px", 
-                                  borderRadius: "6px", 
-                                  color: "var(--md-primary)", 
-                                  fontWeight: 500, 
-                                  marginTop: "4px",
-                                  width: "fit-content",
-                                  whiteSpace: "nowrap"
+                                  fontWeight: 600,
+                                  display: "inline-block",
+                                  whiteSpace: "nowrap",
+                                  verticalAlign: "middle"
                                 }}
                               >
-                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 11, height: 11, color: "var(--md-primary)", flexShrink: 0 }}>
-                                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                   <polyline points="17 8 12 3 7 8" />
-                                   <line x1="12" y1="3" x2="12" y2="15" />
-                                 </svg>
-                                <strong>Upload automatico</strong>
-                                <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
-                                  &nbsp;{batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"}&nbsp;{new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: 700, textAlign: "center" }}>{batch._count.orders}</td>
+                                {highlightFileName(batch.sourceFile)}
+                              </span>
+                              {isAuto && (
+                                <div className="auto-upload-badge">
+                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="auto-upload-badge-icon">
+                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                     <polyline points="17 8 12 3 7 8" />
+                                     <line x1="12" y1="3" x2="12" y2="15" />
+                                   </svg>
+                                  <strong>Upload automatico</strong>
+                                  <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
+                                    &nbsp;{batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"}&nbsp;{new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: 700, textAlign: "center" }}>{batch._count.orders}</td>
                         <td>
                           {batch.batchPrintCount > 0 ? (
                             <span className="badge good">Stampato x{batch.batchPrintCount}</span>
@@ -875,6 +858,72 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
             )}
           </div>
         </div>
+
+        {/* FLOATING BULK ACTIONS BAR FOR BATCHES (M3) */}
+        {selectedBatchIds.length > 0 && (
+          <div className="floating-bulk-bar" role="toolbar" aria-label="Azioni di massa batch">
+            <div className="floating-bulk-info">
+              <span className="floating-bulk-counter">{selectedBatchIds.length}</span>
+              <span className="floating-bulk-text">batch selezionat{selectedBatchIds.length === 1 ? "o" : "i"}</span>
+            </div>
+            
+            <div className="floating-bulk-divider" />
+            
+            <div className="floating-bulk-actions">
+              <button
+                className="button secondary button-sm"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={generateSelectedBatches}
+                style={{ gap: 6 }}
+              >
+                {pendingAction === "batch_pdf_many" ? (
+                  "Generazione..."
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Stampa selezionati
+                  </>
+                )}
+              </button>
+              
+              <button
+                className="button danger button-sm"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={() => deleteSelectedBatches()}
+                style={{ gap: 6 }}
+              >
+                {pendingAction === "batch_delete_many" ? (
+                  "Eliminazione..."
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                    Elimina selezionati
+                  </>
+                )}
+              </button>
+
+              <button
+                className="button tertiary button-sm"
+                type="button"
+                onClick={() => setSelectedBatchIds([])}
+                disabled={pendingAction !== null}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* DELETE ACTIONS CONFIRMATION MODAL */}
         {deleteConfirm && (

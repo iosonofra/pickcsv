@@ -1676,7 +1676,7 @@ export function DashboardClient({
               
               <form className="upload-stack">
                 <div
-                  className={`drop-zone ${isDragActive ? "active" : ""} ${importTouched && !selectedFile ? "warning" : ""}`}
+                  className={`drop-zone ${isDragActive ? "active" : ""} ${importTouched && !selectedFile ? "warning" : ""} ${selectedFile ? "has-file" : ""}`}
                   onDragOver={(e) => {
                     e.preventDefault();
                     setIsDragActive(true);
@@ -1684,66 +1684,87 @@ export function DashboardClient({
                   onDragLeave={() => setIsDragActive(false)}
                   onDrop={handleDrop}
                 >
-                  <div className="drop-zone-icon" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 32, height: 32, marginBottom: 8 }}>
-                      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-                    </svg>
-                  </div>
-                  <p>Trascina qui il file Excel (.xlsx) o CSV (delimitatore ;)</p>
-                  <p className="drop-hint">oppure clicca per sfogliare il computer</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    name="file"
-                    accept=".xlsx,.csv,text/csv"
-                    onChange={(e) => {
-                      setSelectedFile(e.target.files?.[0] ?? null);
-                      setImportStep(1);
-                      setImportPreview(null);
-                      setImportTouched(false);
-                    }}
-                  />
-                </div>
+                  {selectedFile ? (
+                    <div className="drop-zone-file-preview">
+                      <div className="file-preview-header">
+                        <div className={`file-preview-icon-wrapper ${selectedFile.name.toLowerCase().endsWith('.xlsx') ? 'excel' : 'csv'}`}>
+                          {selectedFile.name.toLowerCase().endsWith('.xlsx') ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="file-icon-svg">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="8" y1="13" x2="16" y2="13" />
+                              <line x1="8" y1="17" x2="16" y2="17" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="file-icon-svg">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="16" y1="13" x2="8" y2="13" />
+                              <line x1="16" y1="17" x2="8" y2="17" />
+                            </svg>
+                          )}
+                          <div className="file-preview-icon-pulse" />
+                        </div>
+                        <div className="file-preview-meta">
+                          <h4 className="file-preview-name" title={selectedFile.name}>{selectedFile.name}</h4>
+                          <span className="file-preview-size">
+                            {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.name.toLowerCase().endsWith('.xlsx') ? 'Foglio Excel' : 'File CSV'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="file-preview-remove-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            resetImportFlow();
+                          }}
+                          title="Rimuovi file"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
 
-                {selectedFile && (
-                  <div className="selected-file-card">
-                    <div className="file-card-info-row">
-                      <div className="file-card-icon-container" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
+                      {importStep === 1 && (
+                        <div className="file-preview-status-banner pending">
+                          <div className="status-banner-pulse" />
+                          <span>👉 Clicca su &quot;Genera anteprima righe&quot; in basso per iniziare</span>
+                        </div>
+                      )}
+                      {importStep === 2 && (
+                        <div className="file-preview-status-banner success">
+                          <div className="status-banner-pulse" />
+                          <span>Analisi completata con successo! Anteprima pronta.</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="drop-zone-icon" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 32, height: 32, marginBottom: 8 }}>
+                          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
                         </svg>
                       </div>
-                      <div className="file-card-details">
-                        <span className="file-card-name" title={selectedFile.name}>{selectedFile.name}</span>
-                        <span className="file-card-size">{(selectedFile.size / 1024).toFixed(1)} KB • Pronto per l&apos;elaborazione</span>
-                      </div>
-                      <button 
-                        type="button" 
-                        className="file-card-remove-btn"
-                        onClick={resetImportFlow}
-                        title="Rimuovi file"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {importStep === 1 && (
-                      <div className="file-card-progress-container pending-action-required">
-                        <div className="file-card-pulse-indicator" />
-                        <span className="file-card-progress-text pending-cta-text">
-                          👉 Clicca su &quot;Genera anteprima righe&quot; in basso per iniziare
-                        </span>
-                      </div>
-                    )}
-                    {importStep === 2 && (
-                      <div className="file-card-progress-container success">
-                        <div className="file-card-progress-bar-fill" style={{ width: "100%" }} />
-                        <span className="file-card-progress-text">Analisi completata con successo!</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      <p>Trascina qui il file Excel (.xlsx) o CSV (delimitatore ;)</p>
+                      <p className="drop-hint">oppure clicca per sfogliare il computer</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        name="file"
+                        accept=".xlsx,.csv,text/csv"
+                        onChange={(e) => {
+                          setSelectedFile(e.target.files?.[0] ?? null);
+                          setImportStep(1);
+                          setImportPreview(null);
+                          setImportTouched(false);
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
 
                 <div className="row" style={{ marginTop: 10 }}>
                   {importStep === 1 && (
@@ -1862,29 +1883,7 @@ export function DashboardClient({
                 <button className={`chip ${batchStatusFilter === "auto" ? "active" : ""}`} type="button" onClick={() => setBatchStatusFilter("auto")}>Automatici</button>
               </div>
 
-              {selectedBatchIds.length > 0 && (
-                <div className="sticky-bar" style={{ padding: "10px 14px", marginTop: 12 }}>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 700 }}>{selectedBatchIds.length} batch selezionati</span>
-                  <div className="row">
-                    <button
-                      className="button secondary button-sm"
-                      type="button"
-                      disabled={pendingAction === "batch_pdf_many"}
-                      onClick={generateSelectedBatchPdfs}
-                    >
-                      {pendingAction === "batch_pdf_many" ? "Generazione..." : "Scarica PDF"}
-                    </button>
-                    <button
-                      className="button danger button-sm"
-                      type="button"
-                      disabled={pendingAction === "batch_delete_many"}
-                      onClick={deleteSelectedBatches}
-                    >
-                      Elimina
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {batchesLoading ? (
                 <div className="skeleton-table">
@@ -1925,59 +1924,49 @@ export function DashboardClient({
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleBatches.map((batch) => (
-                          <tr key={batch.id} className={isRecentAutoUpload(batch) ? "recent-auto-row" : ""}>
-                            <td>
-                              <input
-                                aria-label={`Seleziona batch ${batch.sourceFile}`}
-                                type="checkbox"
-                                checked={selectedBatchIds.includes(batch.id)}
-                                onChange={() => toggleBatchSelection(batch.id)}
-                              />
-                            </td>
-                            <td>
-                              <div className="batch-file-cell" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                                <span 
-                                  style={{ 
-                                    fontWeight: 600, 
-                                    display: "inline-block", 
-                                    whiteSpace: "nowrap",
-                                    verticalAlign: "middle"
-                                  }}
-                                >
-                                  {highlightFileName(batch.sourceFile)}
-                                </span>
-                                {batch.importSource === "auto" && (
-                                   <div 
-                                     style={{ 
-                                       display: "inline-flex", 
-                                       alignItems: "center", 
-                                       gap: "6px", 
-                                       fontSize: "0.7rem", 
-                                       background: "rgba(87, 157, 255, 0.07)", 
-                                       border: "1px solid rgba(87, 157, 255, 0.2)", 
-                                       padding: "2px 8px", 
-                                       borderRadius: "6px", 
-                                       color: "var(--md-primary)", 
-                                       fontWeight: 500, 
-                                       marginTop: "4px",
-                                       width: "fit-content",
-                                       whiteSpace: "nowrap"
-                                     }}
-                                   >
-                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 11, height: 11, color: "var(--md-primary)", flexShrink: 0 }}>
-                                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                       <polyline points="17 8 12 3 7 8" />
-                                       <line x1="12" y1="3" x2="12" y2="15" />
-                                     </svg>
-                                     <strong>Upload automatico</strong>
-                                     <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
-                                       {batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"} {new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                                     </span>
-                                   </div>
-                                 )}
-                              </div>
-                            </td>
+                        {visibleBatches.map((batch) => {
+                          const isAuto = batch.importSource === "auto";
+                          const isRecent = isRecentAutoUpload(batch);
+                          return (
+                            <tr
+                              key={batch.id}
+                              className={`auto-batch-row ${isAuto ? "is-auto" : ""} ${isRecent ? "recent" : ""}`}
+                            >
+                              <td>
+                                <input
+                                  aria-label={`Seleziona batch ${batch.sourceFile}`}
+                                  type="checkbox"
+                                  checked={selectedBatchIds.includes(batch.id)}
+                                  onChange={() => toggleBatchSelection(batch.id)}
+                                />
+                              </td>
+                              <td>
+                                <div className="batch-file-cell" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                  <span 
+                                    style={{ 
+                                      fontWeight: 600, 
+                                      display: "inline-block", 
+                                      whiteSpace: "nowrap",
+                                      verticalAlign: "middle"
+                                    }}
+                                  >
+                                    {highlightFileName(batch.sourceFile)}
+                                  </span>
+                                  {isAuto && (
+                                     <div className={`auto-upload-badge ${isRecent ? "recent" : ""}`}>
+                                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="auto-upload-badge-icon">
+                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                         <polyline points="17 8 12 3 7 8" />
+                                         <line x1="12" y1="3" x2="12" y2="15" />
+                                       </svg>
+                                       <strong>Upload automatico</strong>
+                                       <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
+                                         {batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"} {new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                       </span>
+                                     </div>
+                                   )}
+                                </div>
+                              </td>
                             <td style={{ fontWeight: 700, textAlign: "center" }}>{batch._count.orders}</td>
                             <td>
                               <div className="row" style={{ gap: 6 }}>
@@ -2644,6 +2633,72 @@ export function DashboardClient({
             </section>
           </div>
         )}
+        {/* FLOATING BULK ACTIONS BAR FOR BATCHES (M3) */}
+        {selectedBatchIds.length > 0 && (
+          <div className="floating-bulk-bar" role="toolbar" aria-label="Azioni di massa batch">
+            <div className="floating-bulk-info">
+              <span className="floating-bulk-counter">{selectedBatchIds.length}</span>
+              <span className="floating-bulk-text">batch selezionat{selectedBatchIds.length === 1 ? "o" : "i"}</span>
+            </div>
+            
+            <div className="floating-bulk-divider" />
+            
+            <div className="floating-bulk-actions">
+              <button
+                className="button secondary button-sm"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={generateSelectedBatchPdfs}
+                style={{ gap: 6 }}
+              >
+                {pendingAction === "batch_pdf_many" ? (
+                  "Generazione..."
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Scarica PDF
+                  </>
+                )}
+              </button>
+              
+              <button
+                className="button danger button-sm"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={deleteSelectedBatches}
+                style={{ gap: 6 }}
+              >
+                {pendingAction === "batch_delete_many" ? (
+                  "Eliminazione..."
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                    Elimina selezionati
+                  </>
+                )}
+              </button>
+
+              <button
+                className="button tertiary button-sm"
+                type="button"
+                onClick={() => setSelectedBatchIds([])}
+                disabled={pendingAction !== null}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* FLOATING BULK ACTIONS BAR (M3) */}
         {selectedOrderIds.length > 0 && (
           <div className="floating-bulk-bar" role="toolbar" aria-label="Azioni di massa ordini">
