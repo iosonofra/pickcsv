@@ -24,6 +24,24 @@ Puoi configurare il token per l'upload automatico dalla tab `Impostazioni`.
 
 ## Funzionalita implementate
 
+### Importazione da PrestaShop
+
+- Ricerca interattiva ordini tramite ID o riferimento ordine.
+- Flusso a due fasi:
+  - **Fase 1 – Cerca e Aggiungi**: campo di ricerca con feedback immediato:
+    - Se viene trovato esattamente un ordine, viene aggiunto automaticamente all'elenco come pillola.
+    - Se vengono trovati piu ordini, viene mostrata una lista di selezione.
+    - Se non viene trovato nulla, viene mostrato un messaggio di errore.
+  - **Fase 2 – Anteprima e Importazione**: schermata di riepilogo degli ordini selezionati con:
+    - Elenco prodotti espandibile per ciascun ordine.
+    - Note pre-compilate dalla nota privata di PrestaShop, modificabili prima dell'importazione.
+    - Campo corriere modificabile inline per ciascun ordine.
+    - Pulsante di rimozione singolo ordine dall'anteprima.
+    - Pulsante "Conferma e importa" per il salvataggio finale.
+- Pillole ordini selezionati con modifica inline del codice (clic sulla pillola per correggere).
+- Nome batch generato automaticamente con data e ora: `PrestaShop Import (DD/MM/YYYY HH:MM)`.
+- Configurazione PrestaShop (URL + API key cifrata) dalla tab Impostazioni.
+
 ### Import Excel
 
 - Upload file `.xlsx` e `.csv` (drag and drop + selettore file).
@@ -47,6 +65,8 @@ Puoi configurare il token per l'upload automatico dalla tab `Impostazioni`.
 - Raggruppamento ordini per `Riferimento ordine`.
 - Scarto controllato righe senza `Riferimento ordine`.
 - Rilevazione duplicati nello stesso import con logging errori.
+- Filtraggio automatico delle righe completamente vuote (non conteggiate come righe valide).
+
 
 ### Gestione ordini
 
@@ -122,6 +142,7 @@ Puoi configurare il token per l'upload automatico dalla tab `Impostazioni`.
 - `POST /api/import/preview` anteprima import `.xlsx` o `.csv`
 - `POST /api/import` conferma import `.xlsx` o `.csv`
 - `POST /api/import/auto` import automatico autenticato `.xlsx` o `.csv` (`Authorization: Bearer <token>`)
+- `POST /api/import/prestashop` con `action: "search"` cerca ordine su PrestaShop; con `action: "import"` importa gli ordini selezionati
 - `GET /api/orders` ricerca ordini con filtri (`search`, `carrier`, `dateFrom`, `dateTo`)
 - `GET /api/orders/:id` dettaglio ordine
 - `DELETE /api/orders/:id` elimina ordine singolo
@@ -132,6 +153,8 @@ Puoi configurare il token per l'upload automatico dalla tab `Impostazioni`.
 - `GET /api/batches?scope=recent|history` lista batch recenti o storico
 - `DELETE /api/batches/:id` elimina batch singolo
 - `POST /api/batches/delete-many` elimina batch massivamente
+- `GET /api/settings/prestashop` legge configurazione PrestaShop (URL e flag hasApiKey)
+- `POST /api/settings/prestashop` salva configurazione PrestaShop (URL + API key cifrata)
 
 ## Storage e persistenza
 

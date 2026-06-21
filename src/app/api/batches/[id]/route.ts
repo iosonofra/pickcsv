@@ -6,15 +6,16 @@ import { deleteDocumentsByIds, getBatchRelatedDocumentIds } from "@/lib/cleanup"
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function GET(_: Request, { params }: Params) {
+  const { id } = await params;
   await ensureDbSchema();
   const batch = await prisma.importBatch.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       errors: {
         orderBy: {
@@ -39,10 +40,11 @@ export async function GET(_: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
+  const { id } = await params;
   await ensureDbSchema();
 
   const batch = await prisma.importBatch.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true }
   });
   if (!batch) {
@@ -50,9 +52,9 @@ export async function DELETE(_: Request, { params }: Params) {
   }
 
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const docIds = await getBatchRelatedDocumentIds(tx, [params.id]);
+    const docIds = await getBatchRelatedDocumentIds(tx, [id]);
     const deletedFiles = await deleteDocumentsByIds(tx, docIds);
-    await tx.importBatch.delete({ where: { id: params.id } });
+    await tx.importBatch.delete({ where: { id } });
     return { deletedFiles, deletedDocuments: docIds.length };
   });
 

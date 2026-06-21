@@ -198,6 +198,26 @@ export function DashboardClient({
   const [backupsList, setBackupsList] = useState<any[]>([]);
   const [backupActionLoading, setBackupActionLoading] = useState<boolean>(false);
 
+  // Stati Prestashop
+  const [prestashopUrl, setPrestashopUrl] = useState("");
+  const [prestashopApiKey, setPrestashopApiKey] = useState("");
+  const [prestashopConfigured, setPrestashopConfigured] = useState<boolean | null>(null);
+  const [prestashopShowApiKey, setPrestashopShowApiKey] = useState(false);
+  const [prestashopImportSourceTab, setPrestashopImportSourceTab] = useState<"excel" | "prestashop">("excel");
+  const [prestashopQuery, setPrestashopQuery] = useState("");
+  const [prestashopImportError, setPrestashopImportError] = useState("");
+  const [prestashopCustomNote, setPrestashopCustomNote] = useState("");
+  const [prestashopFailedQueries, setPrestashopFailedQueries] = useState<string[]>([]);
+  const [prestashopPills, setPrestashopPills] = useState<any[]>([]);
+  const [prestashopSearchResults, setPrestashopSearchResults] = useState<any[]>([]);
+  const [prestashopSearchLoading, setPrestashopSearchLoading] = useState(false);
+  const [prestashopPreviewMode, setPrestashopPreviewMode] = useState(false);
+  const [expandedPreviewOrders, setExpandedPreviewOrders] = useState<Record<string, boolean>>({});
+  const [editingPillQuery, setEditingPillQuery] = useState<string | null>(null);
+  const [editingPillValue, setEditingPillValue] = useState("");
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const runPreviewImportRef = useRef<() => Promise<void>>(async () => undefined);
   const lastOrderQueryRef = useRef<string>("");
@@ -576,6 +596,292 @@ export function DashboardClient({
     } finally {
       setSettingsLoading(false);
     }
+  };
+
+  const loadPrestashopSettings = async () => {
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/settings/prestashop");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore caricamento impostazioni Prestashop");
+      }
+      setPrestashopUrl(data.url ?? "");
+      setPrestashopConfigured(Boolean(data.hasApiKey && data.url));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const savePrestashopSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setStatus("");
+    setPendingAction("save_prestashop");
+    try {
+      const res = await fetch("/api/settings/prestashop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: prestashopUrl, apiKey: prestashopApiKey })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Errore salvataggio impostazioni Prestashop");
+      }
+      setStatus("Impostazioni Prestashop salvate con successo.");
+      setPrestashopConfigured(Boolean(prestashopUrl && (prestashopApiKey || prestashopConfigured)));
+      setPrestashopApiKey("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore salvataggio");
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const triggerBackgroundSearch = async (tag: string) => {
+    try {
+      const res = await fetch("/api/import/prestashop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "search", query: tag })
+      });
+      
+      if (!res.ok) {
+        throw new Error("Errore API");
+      }
+      
+      const data = await res.json();
+      const foundOrders = data.orders || [];
+      
+      if (foundOrders.length > 0) {
+        const order = foundOrders[0];
+        const initialNote = [order.customerNote, order.privateNote].filter(Boolean).join(" | ");
+        
+        setPrestashopPills(prev => prev.map(p => 
+          p.query.toLowerCase() === tag.toLowerCase() 
+            ? {
+                ...p,
+                status: "success",
+                reference: order.reference,
+                clientName: order.clientName,
+                carrierName: order.carrierName,
+                customerNote: order.customerNote,
+                privateNote: order.privateNote,
+                editedNotes: initialNote,
+                lines: order.lines
+              }
+            : p
+        ));
+      } else {
+        setPrestashopPills(prev => prev.map(p => 
+          p.query.toLowerCase() === tag.toLowerCase() 
+            ? { ...p, status: "error", errorMessage: "Non trovato" }
+            : p
+        ));
+      }
+    } catch (err) {
+      setPrestashopPills(prev => prev.map(p => 
+        p.query.toLowerCase() === tag.toLowerCase() 
+          ? { ...p, status: "error", errorMessage: "Errore rete" }
+          : p
+      ));
+    }
+  };
+
+  const handleAddTag = (inputValue: string) => {
+    const cleanInput = inputValue.trim();
+    if (!cleanInput) return;
+
+    // Split by commas or spaces to support batch pasting
+    const tags = cleanInput
+      .split(/[\s,]+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    setPrestashopQuery("");
+
+    tags.forEach(tag => {
+      setPrestashopPills(prev => {
+        // Avoid duplicates
+        if (prev.some(p => p.query.toLowerCase() === tag.toLowerCase())) {
+          return prev;
+        }
+        
+        const newPill = {
+          query: tag,
+          status: "loading",
+          reference: tag,
+          clientName: "",
+          carrierName: "",
+          lines: []
+        };
+        
+        // Trigger async background search
+        void triggerBackgroundSearch(tag);
+        
+        return [...prev, newPill];
+      });
+    });
+  };
+
+  const handleQueryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === "," || e.key === " ") {
+      e.preventDefault();
+      handleAddTag(prestashopQuery);
+    } else if (e.key === "Backspace" && !prestashopQuery && prestashopPills.length > 0) {
+      const lastPill = prestashopPills[prestashopPills.length - 1];
+      removeOrderFromPills(lastPill.query);
+    }
+  };
+
+  const handleStartEditPill = (pill: any) => {
+    setEditingPillQuery(pill.query);
+    setEditingPillValue(pill.query);
+  };
+
+  const handleSaveEditPill = (oldQuery: string) => {
+    const newVal = editingPillValue.trim();
+    if (!newVal) {
+      removeOrderFromPills(oldQuery);
+      setEditingPillQuery(null);
+      return;
+    }
+
+    if (newVal.toLowerCase() === oldQuery.toLowerCase()) {
+      setEditingPillQuery(null);
+      return;
+    }
+
+    setPrestashopPills(prev => prev.map(p => 
+      p.query.toLowerCase() === oldQuery.toLowerCase()
+        ? {
+            ...p,
+            query: newVal,
+            reference: newVal,
+            status: "loading",
+            clientName: "",
+            carrierName: "",
+            lines: []
+          }
+        : p
+    ));
+
+    void triggerBackgroundSearch(newVal);
+    setEditingPillQuery(null);
+  };
+
+  const handleEditPillKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, oldQuery: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSaveEditPill(oldQuery);
+    } else if (e.key === "Escape") {
+      setEditingPillQuery(null);
+    }
+  };
+
+  const removeOrderFromPills = (query: string) => {
+    setPrestashopPills(prev => prev.filter(p => p.query !== query));
+  };
+
+  const updatePrestashopLineQty = (orderRef: string, lineIndex: number, qty: number) => {
+    setPrestashopPills(prev => prev.map(p => {
+      if (p.reference === orderRef) {
+        const newLines = p.lines.map((l: any, idx: number) => 
+          idx === lineIndex ? { ...l, quantity: qty } : l
+        );
+        return { ...p, lines: newLines };
+      }
+      return p;
+    }));
+  };
+
+  const updatePrestashopLineName = (orderRef: string, lineIndex: number, name: string) => {
+    setPrestashopPills(prev => prev.map(p => {
+      if (p.reference === orderRef) {
+        const newLines = p.lines.map((l: any, idx: number) => 
+          idx === lineIndex ? { ...l, productName: name } : l
+        );
+        return { ...p, lines: newLines };
+      }
+      return p;
+    }));
+  };
+
+  const updatePrestashopLineEan = (orderRef: string, lineIndex: number, ean: string) => {
+    setPrestashopPills(prev => prev.map(p => {
+      if (p.reference === orderRef) {
+        const newLines = p.lines.map((l: any, idx: number) => 
+          idx === lineIndex ? { ...l, ean: ean } : l
+        );
+        return { ...p, lines: newLines };
+      }
+      return p;
+    }));
+  };
+
+  const deletePrestashopLine = (orderRef: string, lineIndex: number) => {
+    setPrestashopPills(prev => prev.map(p => {
+      if (p.reference === orderRef) {
+        const newLines = p.lines.filter((_: any, idx: number) => idx !== lineIndex);
+        return { ...p, lines: newLines };
+      }
+      return p;
+    }));
+  };
+
+  const importSelectedPrestashopOrders = async () => {
+    if (prestashopPills.length === 0) {
+      setPrestashopImportError("Nessun ordine selezionato da importare.");
+      return;
+    }
+
+    setPendingAction("import_prestashop");
+    setError("");
+    setStatus("");
+    startTransition(() => {
+      void (async () => {
+        try {
+          const ordersPayload = prestashopPills.map(p => ({
+            orderReference: p.reference,
+            clientName: p.clientName,
+            carrierName: p.carrierName,
+            notes: p.editedNotes || null,
+            lines: p.lines
+          }));
+
+          const res = await fetch("/api/import/prestashop", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "import", orders: ordersPayload })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error ?? "Importazione fallita.");
+          }
+
+          let successMsg = `Importazione Prestashop completata: ${data.ordersCount} ordini creati.`;
+          setStatus(successMsg);
+          rememberLastAction(`Import Prestashop completato (${data.ordersCount} ordini)`);
+          pushActivity(`Import Prestashop (${data.ordersCount} ordini)`);
+
+          await refreshBatches();
+          if (ordersLoaded || activeTab === "orders") {
+            await refreshOrders();
+          }
+
+          setPrestashopPills([]);
+          setPrestashopSearchResults([]);
+          setPrestashopQuery("");
+          setPrestashopPreviewMode(false);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Errore importazione Prestashop");
+        } finally {
+          setPendingAction(null);
+        }
+      })();
+    });
   };
 
   const handleBackupToggle = async (enabled: boolean) => {
@@ -1119,11 +1425,18 @@ export function DashboardClient({
 
 
   useEffect(() => {
+    if (prestashopConfigured === null) {
+      void loadPrestashopSettings().catch((err) => console.error("Errore mount prestashop:", err));
+    }
+  }, [prestashopConfigured]);
+
+  useEffect(() => {
     if (activeTab !== "settings") return;
     if (autoImportTokenConfigured === null) {
       void loadAutoImportSettings().catch((err) => setError(err instanceof Error ? err.message : "Errore caricamento impostazioni"));
     }
     void loadBackupSettings().catch((err) => console.error("Errore caricamento backup:", err));
+    void loadPrestashopSettings().catch((err) => console.error("Errore ricarica prestashop:", err));
   }, [activeTab, autoImportTokenConfigured]);
 
   useEffect(() => {
@@ -1657,186 +1970,743 @@ export function DashboardClient({
           <div className="grid">
             {/* EXCEL IMPORT CARD */}
             <section className="card">
-              <h2 className="section-title">Importazione File Excel / CSV</h2>
-              <div className="wizard-row">
-                <span className={importStep === 1 ? "wizard-step active current" : "wizard-step"}>1. Carica</span>
-                <span className={importStep === 2 ? "wizard-step active current" : "wizard-step"}>2. Anteprima</span>
-                <span className={importStep === 3 ? "wizard-step active current" : "wizard-step"}>3. Elaborato</span>
-              </div>
-              <p className="wizard-hint" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <span style={{ display: "inline-flex", alignSelf: "center" }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
-                    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1 .5 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-                    <line x1="9" y1="18" x2="15" y2="18" />
-                    <line x1="10" y1="22" x2="14" y2="22" />
-                  </svg>
-                </span>
-                Scorciatoia: premi Ctrl+Invio per l&apos;anteprima se il file è pronto.
-              </p>
-              
-              <form className="upload-stack">
-                <div
-                  className={`drop-zone ${isDragActive ? "active" : ""} ${importTouched && !selectedFile ? "warning" : ""} ${selectedFile ? "has-file" : ""}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragActive(true);
+              <div className="tab-menu" style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--md-outline-variant)", marginBottom: "16px" }}>
+                <button
+                  type="button"
+                  className={`tab-btn ${prestashopImportSourceTab === "excel" ? "active" : ""}`}
+                  onClick={() => setPrestashopImportSourceTab("excel")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    borderBottom: prestashopImportSourceTab === "excel" ? "2px solid var(--md-primary)" : "2px solid transparent",
+                    padding: "8px 16px",
+                    fontWeight: 600,
+                    color: prestashopImportSourceTab === "excel" ? "var(--md-primary)" : "var(--color-text-muted)",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
                   }}
-                  onDragLeave={() => setIsDragActive(false)}
-                  onDrop={handleDrop}
                 >
-                  {selectedFile ? (
-                    <div className="drop-zone-file-preview">
-                      <div className="file-preview-header">
-                        <div className={`file-preview-icon-wrapper ${selectedFile.name.toLowerCase().endsWith('.xlsx') ? 'excel' : 'csv'}`}>
-                          {selectedFile.name.toLowerCase().endsWith('.xlsx') ? (
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="file-icon-svg">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="8" y1="13" x2="16" y2="13" />
-                              <line x1="8" y1="17" x2="16" y2="17" />
-                            </svg>
-                          ) : (
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="file-icon-svg">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                            </svg>
+                  Importa da Excel / CSV
+                </button>
+                <button
+                  type="button"
+                  className={`tab-btn ${prestashopImportSourceTab === "prestashop" ? "active" : ""}`}
+                  onClick={() => setPrestashopImportSourceTab("prestashop")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    borderBottom: prestashopImportSourceTab === "prestashop" ? "2px solid var(--md-primary)" : "2px solid transparent",
+                    padding: "8px 16px",
+                    fontWeight: 600,
+                    color: prestashopImportSourceTab === "prestashop" ? "var(--md-primary)" : "var(--color-text-muted)",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  Importa da PrestaShop
+                </button>
+              </div>
+
+              {prestashopImportSourceTab === "excel" ? (
+                <>
+                  <div className="wizard-row">
+                    <span className={importStep === 1 ? "wizard-step active current" : "wizard-step"}>1. Carica</span>
+                    <span className={importStep === 2 ? "wizard-step active current" : "wizard-step"}>2. Anteprima</span>
+                    <span className={importStep === 3 ? "wizard-step active current" : "wizard-step"}>3. Elaborato</span>
+                  </div>
+                  <p className="wizard-hint" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ display: "inline-flex", alignSelf: "center" }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                        <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1 .5 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                        <line x1="9" y1="18" x2="15" y2="18" />
+                        <line x1="10" y1="22" x2="14" y2="22" />
+                      </svg>
+                    </span>
+                    Scorciatoia: premi Ctrl+Invio per l&apos;anteprima se il file è pronto.
+                  </p>
+                  
+                  <form className="upload-stack">
+                    <div
+                      className={`drop-zone ${isDragActive ? "active" : ""} ${importTouched && !selectedFile ? "warning" : ""} ${selectedFile ? "has-file" : ""}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragActive(true);
+                      }}
+                      onDragLeave={() => setIsDragActive(false)}
+                      onDrop={handleDrop}
+                    >
+                      {selectedFile ? (
+                        <div className="drop-zone-file-preview">
+                          <div className="file-preview-header">
+                            <div className={`file-preview-icon-wrapper ${selectedFile.name.toLowerCase().endsWith('.xlsx') ? 'excel' : 'csv'}`}>
+                              {selectedFile.name.toLowerCase().endsWith('.xlsx') ? (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="file-icon-svg">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                  <line x1="8" y1="13" x2="16" y2="13" />
+                                  <line x1="8" y1="17" x2="16" y2="17" />
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="file-icon-svg">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                  <line x1="16" y1="13" x2="8" y2="13" />
+                                  <line x1="16" y1="17" x2="8" y2="17" />
+                                </svg>
+                              )}
+                              <div className="file-preview-icon-pulse" />
+                            </div>
+                            <div className="file-preview-meta">
+                              <h4 className="file-preview-name" title={selectedFile.name}>{selectedFile.name}</h4>
+                              <span className="file-preview-size">
+                                {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.name.toLowerCase().endsWith('.xlsx') ? 'Foglio Excel' : 'File CSV'}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="file-preview-remove-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                resetImportFlow();
+                              }}
+                              title="Rimuovi file"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {importStep === 1 && (
+                            <div className="file-preview-status-banner pending">
+                              <div className="status-banner-pulse" />
+                              <span>👉 Clicca su &quot;Genera anteprima righe&quot; in basso per iniziare</span>
+                            </div>
                           )}
-                          <div className="file-preview-icon-pulse" />
+                          {importStep === 2 && (
+                            <div className="file-preview-status-banner success">
+                              <div className="status-banner-pulse" />
+                              <span>Analisi completata con successo! Anteprima pronta.</span>
+                            </div>
+                          )}
                         </div>
-                        <div className="file-preview-meta">
-                          <h4 className="file-preview-name" title={selectedFile.name}>{selectedFile.name}</h4>
-                          <span className="file-preview-size">
-                            {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.name.toLowerCase().endsWith('.xlsx') ? 'Foglio Excel' : 'File CSV'}
-                          </span>
-                        </div>
+                      ) : (
+                        <>
+                          <div className="drop-zone-icon" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 32, height: 32, marginBottom: 8 }}>
+                              <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                            </svg>
+                          </div>
+                          <p>Trascina qui il file Excel (.xlsx) o CSV (delimitatore ;)</p>
+                          <p className="drop-hint">oppure clicca per sfogliare il computer</p>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            name="file"
+                            accept=".xlsx,.csv,text/csv"
+                            onChange={(e) => {
+                              setSelectedFile(e.target.files?.[0] ?? null);
+                              setImportStep(1);
+                              setImportPreview(null);
+                              setImportTouched(false);
+                            }}
+                          />
+                        </>
+                      )}
+                    </div>
+
+                    <div className="row" style={{ marginTop: 10 }}>
+                      {importStep === 1 && (
+                        <button 
+                          className="button pulse-cta" 
+                          type="button" 
+                          onClick={runPreviewImport} 
+                          disabled={isPending || pendingAction === "preview" || !selectedFile}
+                        >
+                          {pendingAction === "preview" ? "Analisi in corso..." : "Genera anteprima righe"}
+                        </button>
+                      )}
+                      {importStep === 2 && (
+                        <button className="button good" type="button" onClick={confirmImport} disabled={pendingAction === "upload"}>
+                          {pendingAction === "upload" ? "Salvataggio in database..." : "Conferma importazione ed elabora"}
+                        </button>
+                      )}
+                      {importStep === 3 && (
+                        <button className="button secondary" type="button" onClick={resetImportFlow}>
+                          Importa un altro file
+                        </button>
+                      )}
+                      {importStep === 2 && (
+                        <button className="button tertiary" type="button" onClick={resetImportFlow} disabled={pendingAction !== null}>
+                          Annulla e reimposta
+                        </button>
+                      )}
+                    </div>
+                  </form>
+
+                  {/* IMPORT PREVIEW TABLE */}
+                  {importPreview && (
+                    <div className="preview-box" style={{ marginTop: 20 }}>
+                      <h3 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 10 }}>Riepilogo anteprima file</h3>
+                      <p className="status-inline" style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
+                        Righe totali: <strong>{importPreview.summary.totalRows}</strong> | Ordini pronti: <strong>{importPreview.summary.importedOrders}</strong> | Righe scartate: <strong>{importPreview.summary.skippedRows}</strong> | Duplicati: <strong>{importPreview.summary.duplicateRows}</strong>
+                      </p>
+                      
+                      <div className="table-wrap" style={{ marginTop: 10 }}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Rif. Ordine</th>
+                              <th>Cliente</th>
+                              <th>Corriere</th>
+                              <th>Righe Articolo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.previewOrders.map((item) => (
+                              <tr key={item.orderReference}>
+                                <td style={{ fontWeight: 700 }}>{item.orderReference}</td>
+                                <td>{item.clientName}</td>
+                                <td>{item.carrierName}</td>
+                                <td>{item.lines}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {!prestashopConfigured ? (
+                    <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-text-muted)" }}>
+                      <div style={{ fontSize: "2rem", marginBottom: "12px" }}>⚙️</div>
+                      <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--color-text)", marginBottom: "8px" }}>PrestaShop non configurato</h3>
+                      <p style={{ fontSize: "0.85rem", maxWidth: "420px", margin: "0 auto 16px auto", lineHeight: "1.4" }}>
+                        Per abilitare l&apos;importazione diretta, inserisci l&apos;URL del negozio e la chiave API nella scheda Impostazioni.
+                      </p>
+                      <button type="button" className="button secondary button-sm" onClick={() => setActiveTab("settings")}>
+                        Vai alle Impostazioni
+                      </button>
+                    </div>
+                  ) : prestashopPreviewMode ? (
+                    /* SCREEN 2: PREVIEW & EDIT NOTES */
+                    <div className="upload-stack" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <h3 style={{ fontSize: "1.02rem", fontWeight: 700, color: "var(--color-text)" }}>
+                          Anteprima Ordini da Importare ({prestashopPills.length})
+                        </h3>
                         <button
                           type="button"
-                          className="file-preview-remove-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            resetImportFlow();
-                          }}
-                          title="Rimuovi file"
+                          className="button secondary button-sm"
+                          onClick={() => setPrestashopPreviewMode(false)}
+                          disabled={pendingAction === "import_prestashop"}
                         >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
+                          Torna alla ricerca
                         </button>
                       </div>
 
-                      {importStep === 1 && (
-                        <div className="file-preview-status-banner pending">
-                          <div className="status-banner-pulse" />
-                          <span>👉 Clicca su &quot;Genera anteprima righe&quot; in basso per iniziare</span>
-                        </div>
-                      )}
-                      {importStep === 2 && (
-                        <div className="file-preview-status-banner success">
-                          <div className="status-banner-pulse" />
-                          <span>Analisi completata con successo! Anteprima pronta.</span>
-                        </div>
-                      )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "400px", overflowY: "auto", paddingRight: "4px" }}>
+                        {prestashopPills.map((order, idx) => (
+                          <div
+                            key={order.reference}
+                            style={{
+                              padding: "14px",
+                              borderRadius: "10px",
+                              background: "var(--color-background-card, #ffffff)",
+                              border: "1px solid var(--color-border, #e2e8f0)",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "10px"
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div>
+                                <span style={{ fontWeight: 700, fontSize: "0.92rem", color: "var(--color-primary, #1e3a8a)" }}>
+                                  {idx + 1}. Rif: {order.reference}
+                                </span>
+                                <div style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", marginTop: "2px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
+                                  <span>Cliente: <strong style={{ color: "var(--color-text)" }}>{order.clientName}</strong></span>
+                                  <span>|</span>
+                                  <span style={{ display: "inline-flex", alignItems: "center" }}>
+                                    Corriere:
+                                    <input
+                                      type="text"
+                                      className="input"
+                                      style={{
+                                        display: "inline-block",
+                                        width: "140px",
+                                        height: "24px",
+                                        minHeight: "24px",
+                                        padding: "2px 6px",
+                                        fontSize: "0.78rem",
+                                        borderRadius: "4px",
+                                        marginLeft: "4px",
+                                        border: "1px solid var(--md-outline)",
+                                        background: "transparent",
+                                        color: "var(--color-text)"
+                                      }}
+                                      value={order.carrierName || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setPrestashopPills(prev => prev.map(p => p.reference === order.reference ? { ...p, carrierName: val } : p));
+                                      }}
+                                      disabled={pendingAction === "import_prestashop"}
+                                      title="Modifica corriere"
+                                    />
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "var(--color-danger, #ef4444)",
+                                  cursor: "pointer",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                  padding: "4px"
+                                }}
+                                onClick={() => {
+                                  removeOrderFromPills(order.reference);
+                                  if (prestashopPills.length <= 1) {
+                                    setPrestashopPreviewMode(false);
+                                  }
+                                }}
+                                disabled={pendingAction === "import_prestashop"}
+                              >
+                                Rimuovi
+                              </button>
+                            </div>
+
+                            {/* EDIT NOTE AREA */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
+                                Note ordine per il prelievo (Modificabili)
+                              </label>
+                              <textarea
+                                className="input"
+                                style={{
+                                  fontSize: "0.82rem",
+                                  minHeight: "44px",
+                                  resize: "vertical",
+                                  padding: "6px 10px",
+                                  fontFamily: "inherit"
+                                }}
+                                value={order.editedNotes || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setPrestashopPills(prev => prev.map(p => p.reference === order.reference ? { ...p, editedNotes: val } : p));
+                                }}
+                                placeholder="Nessuna nota. Scrivi qui per aggiungere o modificare..."
+                                disabled={pendingAction === "import_prestashop"}
+                              />
+                            </div>
+
+                            {/* COLLAPSIBLE PRODUCTS LIST */}
+                            <div>
+                              <button
+                                type="button"
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "var(--color-primary)",
+                                  fontSize: "0.75rem",
+                                  cursor: "pointer",
+                                  padding: "2px 0",
+                                  fontWeight: 600,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px"
+                                }}
+                                onClick={() => {
+                                  setExpandedPreviewOrders(prev => ({
+                                    ...prev,
+                                    [order.reference]: !prev[order.reference]
+                                  }));
+                                }}
+                              >
+                                <span>{expandedPreviewOrders[order.reference] ? "▼ Nascondi Articoli" : `▶ Mostra Articoli (${order.lines.length})`}</span>
+                              </button>
+
+                              {expandedPreviewOrders[order.reference] && (
+                                <div style={{
+                                  marginTop: "8px",
+                                  padding: "10px",
+                                  borderRadius: "6px",
+                                  background: "var(--color-light-bg, #f8fafc)",
+                                  border: "1px solid var(--color-border, #e2e8f0)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "8px"
+                                }}>
+                                  {order.lines.length === 0 ? (
+                                    <div style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", fontStyle: "italic", textAlign: "center" }}>
+                                      Nessun articolo rimasto in questo ordine.
+                                    </div>
+                                  ) : (
+                                    order.lines.map((line: any, lIdx: number) => (
+                                      <div
+                                        key={lIdx}
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          flexWrap: "wrap"
+                                        }}
+                                      >
+                                        {/* Qty Input */}
+                                        <input
+                                          type="number"
+                                          className="input"
+                                          style={{
+                                            width: "55px",
+                                            padding: "4px 6px",
+                                            fontSize: "0.76rem",
+                                            textAlign: "center",
+                                            flexShrink: 0
+                                          }}
+                                          value={line.quantity}
+                                          min="1"
+                                          onChange={(e) => {
+                                            const qty = parseInt(e.target.value, 10) || 1;
+                                            updatePrestashopLineQty(order.reference, lIdx, qty);
+                                          }}
+                                          disabled={pendingAction === "import_prestashop"}
+                                          title="Quantità"
+                                        />
+                                        <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", flexShrink: 0 }}>pz.</span>
+                                        
+                                        {/* Product Name Input */}
+                                        <input
+                                          type="text"
+                                          className="input"
+                                          style={{
+                                            flex: 1,
+                                            minWidth: "150px",
+                                            padding: "4px 8px",
+                                            fontSize: "0.76rem"
+                                          }}
+                                          value={line.productName || ""}
+                                          onChange={(e) => updatePrestashopLineName(order.reference, lIdx, e.target.value)}
+                                          disabled={pendingAction === "import_prestashop"}
+                                          title="Nome Prodotto"
+                                        />
+
+                                        {/* EAN Input */}
+                                        <input
+                                          type="text"
+                                          className="input"
+                                          style={{
+                                            width: "120px",
+                                            padding: "4px 8px",
+                                            fontSize: "0.76rem",
+                                            flexShrink: 0
+                                          }}
+                                          value={line.ean || ""}
+                                          onChange={(e) => updatePrestashopLineEan(order.reference, lIdx, e.target.value)}
+                                          placeholder="Codice EAN"
+                                          disabled={pendingAction === "import_prestashop"}
+                                          title="EAN"
+                                        />
+
+                                        {/* Delete Button */}
+                                        <button
+                                          type="button"
+                                          style={{
+                                            background: "none",
+                                            border: "none",
+                                            color: "var(--color-danger, #ef4444)",
+                                            cursor: "pointer",
+                                            fontSize: "0.85rem",
+                                            fontWeight: 700,
+                                            padding: "4px 6px",
+                                            flexShrink: 0,
+                                            display: "inline-flex",
+                                            alignItems: "center"
+                                          }}
+                                          onClick={() => deletePrestashopLine(order.reference, lIdx)}
+                                          disabled={pendingAction === "import_prestashop"}
+                                          title="Rimuovi articolo"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                        <button
+                          type="button"
+                          className="button pulse-cta"
+                          style={{ flex: 1 }}
+                          onClick={importSelectedPrestashopOrders}
+                          disabled={pendingAction === "import_prestashop" || isPending || prestashopPills.length === 0}
+                        >
+                          {pendingAction === "import_prestashop" ? "Importazione in corso..." : `Conferma e importa ${prestashopPills.length} ordini`}
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          onClick={() => {
+                            setPrestashopPills([]);
+                            setPrestashopPreviewMode(false);
+                          }}
+                          disabled={pendingAction === "import_prestashop"}
+                        >
+                          Annulla
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <>
-                      <div className="drop-zone-icon" style={{ display: "inline-flex", alignSelf: "center", justifyContent: "center" }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 32, height: 32, marginBottom: 8 }}>
-                          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-                          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-                        </svg>
-                      </div>
-                      <p>Trascina qui il file Excel (.xlsx) o CSV (delimitatore ;)</p>
-                      <p className="drop-hint">oppure clicca per sfogliare il computer</p>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        name="file"
-                        accept=".xlsx,.csv,text/csv"
-                        onChange={(e) => {
-                          setSelectedFile(e.target.files?.[0] ?? null);
-                          setImportStep(1);
-                          setImportPreview(null);
-                          setImportTouched(false);
+                    /* SCREEN 1: SEARCH & PILLS SELECTION */
+                    <div className="upload-stack" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: 0, lineHeight: "1.4" }}>
+                        Inserisci gli ID o Riferimenti ordine da PrestaShop nel campo integrato. Premi Invio, Virgola o Spazio per confermare ogni codice. Clicca su un codice per modificarlo.
+                      </p>
+
+                      <div 
+                        style={{
+                          border: isInputFocused ? "1px solid var(--md-primary)" : "1px solid var(--md-outline)",
+                          borderRadius: "var(--md-shape-sm)",
+                          minHeight: "48px",
+                          padding: "8px 12px",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "8px",
+                          alignItems: "center",
+                          background: isInputFocused ? "var(--md-surface-container-lowest)" : "var(--md-surface-container-low, #f8fafc)",
+                          boxShadow: isInputFocused ? "0 0 0 3px var(--color-primary-glow)" : "none",
+                          transition: "all 0.15s ease",
+                          cursor: "text"
                         }}
-                      />
-                    </>
-                  )}
-                </div>
+                        onClick={(e) => {
+                          if (e.target === e.currentTarget || (e.target as HTMLElement).getAttribute("data-tag-container")) {
+                            textInputRef.current?.focus();
+                          }
+                        }}
+                        data-tag-container="true"
+                      >
+                        {/* Selected Pills inside the input box */}
+                        {prestashopPills.map((pill, pIdx) => {
+                          const isEditing = editingPillQuery === pill.query;
+                          
+                          if (isEditing) {
+                            return (
+                              <input
+                                key={`edit-${pill.query}-${pIdx}`}
+                                type="text"
+                                style={{
+                                  padding: "2px 8px",
+                                  height: "26px",
+                                  fontSize: "0.78rem",
+                                  borderRadius: "12px",
+                                  width: "110px",
+                                  border: "1px solid var(--md-primary)",
+                                  outline: "none",
+                                  background: "var(--md-surface-container-lowest)",
+                                  color: "var(--color-text)"
+                                }}
+                                value={editingPillValue}
+                                onChange={(e) => setEditingPillValue(e.target.value)}
+                                onKeyDown={(e) => handleEditPillKeyDown(e, pill.query)}
+                                onBlur={() => handleSaveEditPill(pill.query)}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            );
+                          }
 
-                <div className="row" style={{ marginTop: 10 }}>
-                  {importStep === 1 && (
-                    <button 
-                      className="button pulse-cta" 
-                      type="button" 
-                      onClick={runPreviewImport} 
-                      disabled={isPending || pendingAction === "preview" || !selectedFile}
-                    >
-                      {pendingAction === "preview" ? "Analisi in corso..." : "Genera anteprima righe"}
-                    </button>
-                  )}
-                  {importStep === 2 && (
-                    <button className="button good" type="button" onClick={confirmImport} disabled={pendingAction === "upload"}>
-                      {pendingAction === "upload" ? "Salvataggio in database..." : "Conferma importazione ed elabora"}
-                    </button>
-                  )}
-                  {importStep === 3 && (
-                    <button className="button secondary" type="button" onClick={resetImportFlow}>
-                      Importa un altro file
-                    </button>
-                  )}
-                  {importStep === 2 && (
-                    <button className="button tertiary" type="button" onClick={resetImportFlow} disabled={pendingAction !== null}>
-                      Annulla e reimposta
-                    </button>
-                  )}
-                </div>
-              </form>
+                          // Define colors based on status
+                          let pillBg = "var(--md-surface-container-high, #e2e8f0)";
+                          let pillColor = "var(--md-on-surface, #334155)";
+                          let pillBorder = "1px solid var(--md-outline-variant, #cbd5e1)";
+                          let statusIndicator = null;
 
-              {/* IMPORT PREVIEW TABLE */}
-              {importPreview && (
-                <div className="preview-box" style={{ marginTop: 20 }}>
-                  <h3 className="section-title" style={{ fontSize: "0.95rem", marginBottom: 10 }}>Riepilogo anteprima file</h3>
-                  <p className="status-inline" style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
-                    Righe totali: <strong>{importPreview.summary.totalRows}</strong> | Ordini pronti: <strong>{importPreview.summary.importedOrders}</strong> | Righe scartate: <strong>{importPreview.summary.skippedRows}</strong> | Duplicati: <strong>{importPreview.summary.duplicateRows}</strong>
-                  </p>
-                  
-                  <div className="table-wrap" style={{ marginTop: 10 }}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Rif. Ordine</th>
-                          <th>Cliente</th>
-                          <th>Corriere</th>
-                          <th>Righe Articolo</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {importPreview.previewOrders.map((item) => (
-                          <tr key={item.orderReference}>
-                            <td style={{ fontWeight: 700 }}>{item.orderReference}</td>
-                            <td>{item.clientName}</td>
-                            <td>{item.carrierName}</td>
-                            <td>{item.lines}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                          if (pill.status === "loading") {
+                            pillBg = "var(--color-primary-glow, #eff6ff)";
+                            pillColor = "var(--color-primary-dark, #1d4ed8)";
+                            pillBorder = "1px solid var(--color-primary, #3b82f6)";
+                            statusIndicator = <span className="spinner-mini" style={{ marginRight: 2 }} />;
+                          } else if (pill.status === "success") {
+                            pillBg = "var(--md-success-container, #e6f4ea)";
+                            pillColor = "var(--md-success, #137333)";
+                            pillBorder = "1px solid rgba(19, 115, 51, 0.2)";
+                            statusIndicator = <span style={{ marginRight: 2, fontSize: "0.75rem" }}>✓</span>;
+                          } else if (pill.status === "error") {
+                            pillBg = "var(--md-error-container, #fce8e6)";
+                            pillColor = "var(--md-error, #c5221f)";
+                            pillBorder = "1px solid rgba(197, 34, 31, 0.2)";
+                            statusIndicator = <span style={{ marginRight: 2, fontSize: "0.75rem" }}>⚠️</span>;
+                          }
 
-              {summary && (
-                <div style={{ marginTop: 15, padding: "12px 16px", borderRadius: "12px", background: "var(--color-success-glow)", border: "1px solid rgba(16, 185, 129, 0.25)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, color: "var(--color-success)", flexShrink: 0 }}>
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <p className="status-inline" style={{ margin: 0, color: "var(--color-success)", fontSize: "0.82rem" }}>
-                    <strong>Importazione completata con successo!</strong> Righe: {summary.totalRows} | Ordini inseriti: {summary.importedOrders} | Scartati: {summary.skippedRows} | Duplicati: {summary.duplicateRows}
-                  </p>
-                </div>
+                          return (
+                            <div
+                              key={`${pill.query}-${pIdx}`}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "4px 10px",
+                                borderRadius: "14px",
+                                background: pillBg,
+                                border: pillBorder,
+                                color: pillColor,
+                                fontSize: "0.78rem",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                userSelect: "none",
+                                transition: "all 0.2s"
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEditPill(pill);
+                              }}
+                              title={
+                                pill.status === "success" 
+                                  ? `Rif: ${pill.reference}\nCliente: ${pill.clientName}\nCorriere: ${pill.carrierName}\nClicca per modificare` 
+                                  : pill.status === "error" 
+                                    ? `${pill.errorMessage || "Non trovato"}. Clicca per modificare o riprovare.`
+                                    : "Ricerca in corso..."
+                              }
+                            >
+                              {statusIndicator}
+                              <span>{pill.reference}</span>
+                              
+                              {pill.status === "error" && (
+                                <button
+                                  type="button"
+                                  style={{
+                                    border: "none",
+                                    background: "none",
+                                    padding: 0,
+                                    cursor: "pointer",
+                                    color: "currentColor",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    display: "inline-flex",
+                                    alignItems: "center"
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPrestashopPills(prev => prev.map(p => 
+                                      p.query === pill.query ? { ...p, status: "loading" } : p
+                                    ));
+                                    void triggerBackgroundSearch(pill.query);
+                                  }}
+                                  title="Riprova la ricerca"
+                                >
+                                  🔄
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                style={{
+                                  border: "none",
+                                  background: "none",
+                                  padding: 0,
+                                  cursor: "pointer",
+                                  color: "currentColor",
+                                  fontWeight: 700,
+                                  fontSize: "0.8rem",
+                                  display: "inline-flex",
+                                  alignItems: "center"
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeOrderFromPills(pill.query);
+                                }}
+                                title="Rimuovi"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Borderless input field for typing */}
+                        <input
+                          ref={textInputRef}
+                          type="text"
+                          style={{
+                            border: "none",
+                            outline: "none",
+                            background: "transparent",
+                            flex: "1 1 120px",
+                            minWidth: "120px",
+                            color: "var(--color-text)",
+                            padding: 0,
+                            margin: 0,
+                            fontSize: "0.85rem",
+                            height: "26px"
+                          }}
+                          placeholder={prestashopPills.length === 0 ? "es. MNMZURQBU, 202357 o 202753..." : ""}
+                          value={prestashopQuery}
+                          onChange={(e) => setPrestashopQuery(e.target.value)}
+                          onKeyDown={handleQueryKeyDown}
+                          onFocus={() => setIsInputFocused(true)}
+                          onBlur={() => setIsInputFocused(false)}
+                          disabled={pendingAction === "import_prestashop"}
+                        />
+                      </div>
+
+                      {prestashopImportError && (
+                        <p style={{ color: "var(--color-danger)", fontSize: "0.78rem", margin: 0, fontWeight: 500 }}>
+                          {prestashopImportError}
+                        </p>
+                      )}
+
+                      {/* ACTIONS */}
+                      <div className="row" style={{ marginTop: 6 }}>
+                        <button
+                          type="button"
+                          className="button pulse-cta"
+                          onClick={() => setPrestashopPreviewMode(true)}
+                          disabled={prestashopPills.length === 0 || prestashopPills.some(p => p.status === "loading")}
+                          style={{ flex: 1 }}
+                        >
+                          Genera Anteprima ({prestashopPills.filter(p => p.status === "success").length} ordini pronti)
+                        </button>
+                      </div>
+                    </div>
+
+                  )}
+
+                  {prestashopFailedQueries.length > 0 && (
+                    <div style={{ marginTop: 15, padding: "12px 16px", borderRadius: "12px", background: "var(--color-warning-glow)", border: "1px solid rgba(255, 196, 0, 0.25)", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, color: "var(--color-warning)", flexShrink: 0, marginTop: 2 }}>
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <p className="status-inline" style={{ margin: 0, color: "var(--color-warning)", fontSize: "0.82rem", lineHeight: "1.4" }}>
+                        <strong>Attenzione!</strong> I seguenti ID/Riferimenti ordine non sono stati trovati su PrestaShop: <strong>{prestashopFailedQueries.join(", ")}</strong>
+                      </p>
+                    </div>
+                  )}
+
+                  {summary && (
+                    <div style={{ marginTop: 15, padding: "12px 16px", borderRadius: "12px", background: "var(--color-success-glow)", border: "1px solid rgba(16, 185, 129, 0.25)", display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, color: "var(--color-success)", flexShrink: 0 }}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <p className="status-inline" style={{ margin: 0, color: "var(--color-success)", fontSize: "0.82rem" }}>
+                        <strong>Importazione completata con successo!</strong> Righe: {summary.totalRows} | Ordini inseriti: {summary.importedOrders} | Scartati: {summary.skippedRows} | Duplicati: {summary.duplicateRows}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </section>
 
@@ -2431,6 +3301,82 @@ export function DashboardClient({
                   </div>
                 </div>
               </div>
+            </section>
+
+            {/* Integrazione Prestashop Card */}
+            <section className="card">
+              <h2 className="section-title">Integrazione Webservice Prestashop</h2>
+              <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: 0 }}>
+                Configura i dati di connessione per scaricare in tempo reale gli ordini dal tuo e-commerce Prestashop.
+              </p>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 20px 0" }}>
+                <span className="field-label" style={{ margin: 0 }}>Stato integrazione:</span>
+                {settingsLoading ? (
+                  <span className="badge info">Lettura...</span>
+                ) : prestashopConfigured ? (
+                  <span className="badge good active-pulse" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span className="pulse-dot" />
+                    Collegato e Cifrato
+                  </span>
+                ) : (
+                  <span className="badge warn">Non configurato</span>
+                )}
+              </div>
+
+              <form className="settings-form" onSubmit={savePrestashopSettings}>
+                <label className="field-label" htmlFor="prestashop-url">
+                  URL del Negozio Prestashop
+                </label>
+                <input
+                  id="prestashop-url"
+                  className="input"
+                  type="url"
+                  value={prestashopUrl}
+                  placeholder="https://www.tuonegozio.com"
+                  onChange={(e) => setPrestashopUrl(e.target.value)}
+                  style={{ marginBottom: 16 }}
+                />
+
+                <label className="field-label" htmlFor="prestashop-api-key">
+                  Chiave API Webservice (Cifrata nel database)
+                </label>
+                <div className="input-with-action">
+                  <input
+                    id="prestashop-api-key"
+                    className="input token-input-inline"
+                    type={prestashopShowApiKey ? "text" : "password"}
+                    value={prestashopApiKey}
+                    placeholder={prestashopConfigured ? "•••••••••••••••••••••••••••••••• (Chiave già salvata)" : "Inserisci la chiave API..."}
+                    onChange={(e) => setPrestashopApiKey(e.target.value)}
+                    style={{ paddingRight: "44px" }}
+                  />
+                  <button
+                    className="input-inline-action-btn"
+                    type="button"
+                    onClick={() => setPrestashopShowApiKey((prev) => !prev)}
+                    title={prestashopShowApiKey ? "Nascondi chiave" : "Mostra chiave"}
+                  >
+                    {prestashopShowApiKey ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                <div className="row" style={{ marginTop: 16 }}>
+                  <button className="button" type="submit" disabled={pendingAction === "save_prestashop"}>
+                    {pendingAction === "save_prestashop" ? "Salvataggio..." : "Salva configurazione"}
+                  </button>
+                </div>
+              </form>
             </section>
 
             {/* Preferenze Visive Card */}

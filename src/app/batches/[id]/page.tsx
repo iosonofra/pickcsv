@@ -4,15 +4,16 @@ import { notFound } from "next/navigation";
 import { ensureDbSchema, prisma } from "@/lib/db";
 
 type Props = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default async function BatchDetailPage({ params }: Props) {
+  const { id } = await params;
   await ensureDbSchema();
   const batch = await prisma.importBatch.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       errors: {
         orderBy: {

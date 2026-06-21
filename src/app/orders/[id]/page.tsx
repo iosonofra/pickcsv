@@ -4,15 +4,16 @@ import dayjs from "dayjs";
 import { ensureDbSchema, prisma } from "@/lib/db";
 
 type Props = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default async function OrderDetailPage({ params }: Props) {
+  const { id } = await params;
   await ensureDbSchema();
   const order = await prisma.order.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       batch: true,
       lines: true,

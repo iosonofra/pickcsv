@@ -3,9 +3,9 @@ const nextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "20mb"
-    },
-    serverComponentsExternalPackages: ["pdfkit", "fontkit", "restructure", "linebreak"]
-  }
+    }
+  },
+  serverExternalPackages: ["pdfkit", "fontkit", "restructure", "linebreak"]
 };
 
 export default nextConfig;

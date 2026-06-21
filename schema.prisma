@@ -86,3 +86,9 @@ model GeneratedDocument {
   @@index([type])
   @@index([createdAt])
 }
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @default(now())
+}

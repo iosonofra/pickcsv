@@ -138,12 +138,28 @@ export const findOrders = async (params: OrderSearchParams) => {
   const andFilters: Prisma.OrderWhereInput[] = [];
 
   if (params.search) {
-    andFilters.push({
-      OR: [
-        { orderReference: { contains: params.search } },
-        { clientName: { contains: params.search } }
-      ]
-    });
+    const searchTerms = params.search
+      .split(",")
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0);
+
+    if (searchTerms.length > 1) {
+      andFilters.push({
+        OR: searchTerms.map((term) => ({
+          OR: [
+            { orderReference: { contains: term } },
+            { clientName: { contains: term } }
+          ]
+        }))
+      });
+    } else if (searchTerms.length === 1) {
+      andFilters.push({
+        OR: [
+          { orderReference: { contains: searchTerms[0] } },
+          { clientName: { contains: searchTerms[0] } }
+        ]
+      });
+    }
   }
 
   if (params.carrier) {

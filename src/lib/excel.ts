@@ -101,7 +101,12 @@ const parseWorkbookMatrix = (buffer: Buffer): (string | number | null)[][] => {
 };
 
 const buildParsedOrders = (matrix: (string | number | null)[][], sourceType: "xlsx" | "csv"): ParsedWorkbookResult => {
-  if (matrix.length < 2) {
+  const filteredMatrix = matrix.filter((row, idx) => {
+    if (idx === 0) return true;
+    return !row.every((cell) => cell === null || cell === undefined || String(cell).trim() === "");
+  });
+
+  if (filteredMatrix.length < 2) {
     return {
       totalRows: 0,
       skippedRows: 0,
@@ -111,7 +116,7 @@ const buildParsedOrders = (matrix: (string | number | null)[][], sourceType: "xl
     };
   }
 
-  const headers = matrix[0].map((cell) => normalizeHeader(cell));
+  const headers = filteredMatrix[0].map((cell) => normalizeHeader(cell));
   const indexByKey = {
     orderReference: headers.indexOf(HEADER_KEYS.orderReference),
     clientName: headers.indexOf(HEADER_KEYS.clientName),
@@ -139,8 +144,8 @@ const buildParsedOrders = (matrix: (string | number | null)[][], sourceType: "xl
   let lastClientName: string | undefined;
   let lastCarrierName: string | undefined;
 
-  for (let i = 1; i < matrix.length; i += 1) {
-    const row = matrix[i];
+  for (let i = 1; i < filteredMatrix.length; i += 1) {
+    const row = filteredMatrix[i];
     const rowNumber = i + 1;
 
     const rawOrderReference = asString(row[indexByKey.orderReference]);
@@ -246,7 +251,7 @@ const buildParsedOrders = (matrix: (string | number | null)[][], sourceType: "xl
   }
 
   return {
-    totalRows: Math.max(0, matrix.length - 1),
+    totalRows: Math.max(0, filteredMatrix.length - 1),
     skippedRows,
     duplicateRows,
     orders: [...groups.values()],

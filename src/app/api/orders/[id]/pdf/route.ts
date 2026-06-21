@@ -7,15 +7,16 @@ import { generateSingleOrderPdf } from "@/lib/pdf";
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function POST(req: Request, { params }: Params) {
+  const { id } = await params;
   await ensureDbSchema();
   const order = await prisma.order.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       lines: true
     }

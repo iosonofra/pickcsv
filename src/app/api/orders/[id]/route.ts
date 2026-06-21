@@ -5,15 +5,16 @@ import { deleteDocumentsByIds, getOrderRelatedDocumentIds } from "@/lib/cleanup"
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function GET(_: Request, { params }: Params) {
+  const { id } = await params;
   await ensureDbSchema();
   const order = await prisma.order.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       batch: true,
       lines: true,
@@ -33,10 +34,11 @@ export async function GET(_: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
+  const { id } = await params;
   await ensureDbSchema();
 
   const order = await prisma.order.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: { id: true }
   });
 
@@ -45,9 +47,9 @@ export async function DELETE(_: Request, { params }: Params) {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const docIds = await getOrderRelatedDocumentIds(tx, [params.id]);
+    const docIds = await getOrderRelatedDocumentIds(tx, [id]);
     const deletedFiles = await deleteDocumentsByIds(tx, docIds);
-    await tx.order.delete({ where: { id: params.id } });
+    await tx.order.delete({ where: { id } });
     return { deletedFiles, deletedDocuments: docIds.length };
   });
 

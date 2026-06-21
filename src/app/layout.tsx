@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   description: "Sistema di picking con import Excel, barcode e PDF"
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = cookies();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
   const savedTheme = cookieStore.get("picking_theme")?.value;
   const isLight = savedTheme !== "dark"; // Default to light theme
 

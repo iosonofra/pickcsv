@@ -5,15 +5,16 @@ import { ensureDbSchema, prisma } from "@/lib/db";
 export const runtime = "nodejs";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export async function GET(_: Request, { params }: Params) {
+  const { id } = await params;
   await ensureDbSchema();
   const document = await prisma.generatedDocument.findUnique({
-    where: { id: params.id }
+    where: { id }
   });
 
   if (!document) {
