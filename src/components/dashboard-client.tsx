@@ -226,6 +226,16 @@ export function DashboardClient({
   // Theme State
   const [theme, setTheme] = useState<"dark" | "light">("light");
 
+  // Stati aggiuntivi per il restyling Impostazioni
+  const [copyTokenSuccess, setCopyTokenSuccess] = useState<Record<string, boolean>>({});
+  const [isConfirmRestoreModalOpen, setIsConfirmRestoreModalOpen] = useState(false);
+  const [confirmRestoreFilename, setConfirmRestoreFilename] = useState("");
+  const [confirmRestoreTypedText, setConfirmRestoreTypedText] = useState("");
+  const [confirmRestoreUploadedFile, setConfirmRestoreUploadedFile] = useState<File | null>(null);
+  const [isDragOverBackup, setIsDragOverBackup] = useState(false);
+  const [prestashopTesting, setPrestashopTesting] = useState(false);
+
+
   useEffect(() => {
     try {
       const savedTheme = window.localStorage.getItem("picking_theme") || "light";
@@ -640,6 +650,41 @@ export function DashboardClient({
     }
   };
 
+  const copyToClipboard = async (text: string, type: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyTokenSuccess((prev) => ({ ...prev, [type]: true }));
+      setTimeout(() => {
+        setCopyTokenSuccess((prev) => ({ ...prev, [type]: false }));
+      }, 2000);
+    } catch (err) {
+      console.error("Errore copia negli appunti:", err);
+    }
+  };
+
+  const testPrestashopConnection = async () => {
+    setError("");
+    setStatus("");
+    setPrestashopTesting(true);
+    try {
+      const res = await fetch("/api/settings/prestashop/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: prestashopUrl, apiKey: prestashopApiKey })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Connessione non riuscita.");
+      }
+      setStatus(data.message ?? "Connessione stabilita con successo!");
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : "Errore durante il test di connessione.");
+    } finally {
+      setPrestashopTesting(false);
+    }
+  };
+
   const triggerBackgroundSearch = async (tag: string) => {
     try {
       const res = await fetch("/api/import/prestashop", {
@@ -951,36 +996,11 @@ export function DashboardClient({
     }
   };
 
-  const handleRestoreBackup = async (filename: string) => {
-    if (
-      !window.confirm(
-        `ATTENZIONE: Sei sicuro di voler ripristinare il database dal backup "${filename}"?\nTutti i dati correnti (ordini, lotti, impostazioni) verranno sovrascritti permanentemente e l'applicazione verrà ricaricata.`
-      )
-    ) {
-      return;
-    }
-    setBackupActionLoading(true);
-    setError("");
-    setStatus("");
-    try {
-      const res = await fetch("/api/settings/backup/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Errore ripristino database");
-      }
-      setStatus("Database ripristinato con successo! Ricaricamento in corso...");
-      pushActivity(`Database ripristinato dal backup ${filename}`);
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossibile ripristinare il backup");
-      setBackupActionLoading(false);
-    }
+  const handleRestoreBackup = (filename: string) => {
+    setConfirmRestoreFilename(filename);
+    setConfirmRestoreUploadedFile(null);
+    setConfirmRestoreTypedText("");
+    setIsConfirmRestoreModalOpen(true);
   };
 
   const saveAutoImportToken = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -3169,9 +3189,9 @@ export function DashboardClient({
           </div>
         )}
 
-        {/* TAB 3: IMPOSTAZIONI */}
         {activeTab === "settings" && (
           <div className="settings-grid">
+            {/* Card: Integrazione Automatica Windows */}
             <section className="card">
               <h2 className="section-title">Integrazione Automatica Windows</h2>
               
@@ -3193,27 +3213,52 @@ export function DashboardClient({
                 <label className="field-label" htmlFor="auto-import-token">
                   Token di Autenticazione API
                 </label>
-                <p className="status-inline" style={{ fontSize: "0.78rem", color: "var(--color-text-dim)", margin: 0 }}>
+                <p className="status-inline" style={{ fontSize: "0.78rem", color: "var(--color-text-dim)", margin: "0 0 8px 0" }}>
                   Questo token protegge l&apos;endpoint ed è memorizzato nel database SQLite. Viene usato dagli script PowerShell su Windows.
                 </p>
                 
-                <div className="input-with-action">
+                <div className="input-container-relative">
+                  <span className="input-icon-left">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </span>
                   <input
                     id="auto-import-token"
-                    className="input token-input-inline"
+                    className={`input token-input-inline input-with-icon-left ${autoImportToken ? "has-copy-btn" : ""}`}
                     type={showAutoImportToken ? "text" : "password"}
                     value={autoImportToken}
                     placeholder="Inserisci o genera il token segreto..."
                     autoComplete="new-password"
                     onChange={(e) => setAutoImportToken(e.target.value)}
-                    style={{ paddingRight: "44px" }}
                   />
+                  {autoImportToken && (
+                    <button
+                      className="button-copy-token"
+                      type="button"
+                      onClick={() => void copyToClipboard(autoImportToken, "token")}
+                      title={copyTokenSuccess["token"] ? "Copiato!" : "Copia token negli appunti"}
+                    >
+                      {copyTokenSuccess["token"] ? (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--md-success, #4c9c6c)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   {autoImportToken && (
                     <button
                       className="input-inline-action-btn"
                       type="button"
                       onClick={() => setShowAutoImportToken((prev) => !prev)}
                       title={showAutoImportToken ? "Nascondi token" : "Mostra token"}
+                      style={{ right: 12 }}
                     >
                       {showAutoImportToken ? (
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
@@ -3230,7 +3275,7 @@ export function DashboardClient({
                   )}
                 </div>
 
-                <div className="row" style={{ marginTop: 8 }}>
+                <div className="row" style={{ marginTop: 12 }}>
                   <button className="button" type="submit" disabled={pendingAction === "save_auto_import_token"}>
                     {pendingAction === "save_auto_import_token" ? "Salvataggio..." : "Salva impostazioni"}
                   </button>
@@ -3248,7 +3293,7 @@ export function DashboardClient({
                   </button>
                 </div>
 
-                <label className="toggle-row" style={{ marginTop: 12 }}>
+                <label className="toggle-row" style={{ marginTop: 14 }}>
                   <input
                     type="checkbox"
                     checked={autoImportOpenDashboard}
@@ -3303,7 +3348,7 @@ export function DashboardClient({
               </div>
             </section>
 
-            {/* Integrazione Prestashop Card */}
+            {/* Card: Integrazione Webservice Prestashop */}
             <section className="card">
               <h2 className="section-title">Integrazione Webservice Prestashop</h2>
               <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: 0 }}>
@@ -3328,34 +3373,66 @@ export function DashboardClient({
                 <label className="field-label" htmlFor="prestashop-url">
                   URL del Negozio Prestashop
                 </label>
-                <input
-                  id="prestashop-url"
-                  className="input"
-                  type="url"
-                  value={prestashopUrl}
-                  placeholder="https://www.tuonegozio.com"
-                  onChange={(e) => setPrestashopUrl(e.target.value)}
-                  style={{ marginBottom: 16 }}
-                />
+                <div className="input-container-relative" style={{ marginBottom: 16 }}>
+                  <span className="input-icon-left">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                  </span>
+                  <input
+                    id="prestashop-url"
+                    className="input input-with-icon-left"
+                    type="url"
+                    value={prestashopUrl}
+                    placeholder="https://www.tuonegozio.com"
+                    onChange={(e) => setPrestashopUrl(e.target.value)}
+                  />
+                </div>
 
                 <label className="field-label" htmlFor="prestashop-api-key">
                   Chiave API Webservice (Cifrata nel database)
                 </label>
-                <div className="input-with-action">
+                <div className="input-container-relative">
+                  <span className="input-icon-left">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </span>
                   <input
                     id="prestashop-api-key"
-                    className="input token-input-inline"
+                    className={`input token-input-inline input-with-icon-left ${prestashopApiKey ? "has-copy-btn" : ""}`}
                     type={prestashopShowApiKey ? "text" : "password"}
                     value={prestashopApiKey}
                     placeholder={prestashopConfigured ? "•••••••••••••••••••••••••••••••• (Chiave già salvata)" : "Inserisci la chiave API..."}
                     onChange={(e) => setPrestashopApiKey(e.target.value)}
-                    style={{ paddingRight: "44px" }}
                   />
+                  {prestashopApiKey && (
+                    <button
+                      className="button-copy-token"
+                      type="button"
+                      onClick={() => void copyToClipboard(prestashopApiKey, "apikey")}
+                      title={copyTokenSuccess["apikey"] ? "Copiata!" : "Copia chiave API"}
+                    >
+                      {copyTokenSuccess["apikey"] ? (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--md-success, #4c9c6c)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   <button
                     className="input-inline-action-btn"
                     type="button"
                     onClick={() => setPrestashopShowApiKey((prev) => !prev)}
                     title={prestashopShowApiKey ? "Nascondi chiave" : "Mostra chiave"}
+                    style={{ right: 12 }}
                   >
                     {prestashopShowApiKey ? (
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
@@ -3375,67 +3452,33 @@ export function DashboardClient({
                   <button className="button" type="submit" disabled={pendingAction === "save_prestashop"}>
                     {pendingAction === "save_prestashop" ? "Salvataggio..." : "Salva configurazione"}
                   </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={prestashopTesting || (!prestashopUrl && !prestashopConfigured)}
+                    onClick={testPrestashopConnection}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                  >
+                    {prestashopTesting ? (
+                      <>
+                        <span className="spinner-mini" />
+                        Verifica in corso...
+                      </>
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                          <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
+                        Test Connessione
+                      </>
+                    )}
+                  </button>
                 </div>
               </form>
             </section>
 
-            {/* Preferenze Visive Card */}
-            <section className="card">
-              <h2 className="section-title">Preferenze Visive</h2>
-              <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: 0 }}>
-                Personalizza l&apos;aspetto visivo dell&apos;interfaccia Picking Logistica.
-              </p>
-
-              <div style={{ marginTop: 18 }}>
-                <span className="field-label" style={{ display: "block", marginBottom: 12, fontSize: "0.85rem", fontWeight: 600 }}>
-                  Tema dell&apos;applicazione
-                </span>
-                
-                <div className="theme-grid">
-                  <button
-                    type="button"
-                    className={`theme-card ${theme === "light" ? "active" : ""}`}
-                    onClick={() => theme !== "light" && toggleTheme()}
-                  >
-                    <div className="theme-card-preview light">
-                      <span className="preview-sun" />
-                    </div>
-                    <div className="theme-card-label">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
-                        <circle cx="12" cy="12" r="5" />
-                        <line x1="12" y1="1" x2="12" y2="3" />
-                        <line x1="12" y1="21" x2="12" y2="23" />
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                        <line x1="1" y1="12" x2="3" y2="12" />
-                        <line x1="21" y1="12" x2="23" y2="12" />
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                      </svg>
-                      Tema Chiaro
-                    </div>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    className={`theme-card ${theme === "dark" ? "active" : ""}`}
-                    onClick={() => theme !== "dark" && toggleTheme()}
-                  >
-                    <div className="theme-card-preview dark">
-                      <span className="preview-moon" />
-                    </div>
-                    <div className="theme-card-label">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                      </svg>
-                      Tema Scuro
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            {/* Scheda Gestione Backup Database SQLite */}
+            {/* Card: Gestione Backup Database SQLite */}
             <section className="card">
               <h2 className="section-title" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18, color: "var(--color-primary)" }}>
@@ -3446,7 +3489,7 @@ export function DashboardClient({
                 Backup Database SQLite
               </h2>
               <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: "0 0 16px 0" }}>
-                Gestisci e scarica le copie di sicurezza del database per prevenire perdite accidentali di dati durante aggiornamenti, migrazioni o operazioni git pull.
+                Gestisci, scarica o carica le copie di sicurezza del database per prevenire perdite accidentali di dati durante aggiornamenti, migrazioni o operazioni git pull.
               </p>
 
               <label className="toggle-row" style={{ marginTop: 12 }}>
@@ -3495,6 +3538,60 @@ export function DashboardClient({
                 </button>
               </div>
 
+              {/* Drag-and-Drop Backup Database Area */}
+              <div
+                className={`backup-upload-zone ${isDragOverBackup ? "active" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragOverBackup(true);
+                }}
+                onDragLeave={() => setIsDragOverBackup(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragOverBackup(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    if (!file.name.endsWith(".db")) {
+                      setError("Il file caricato deve avere estensione .db");
+                      return;
+                    }
+                    setConfirmRestoreUploadedFile(file);
+                    setConfirmRestoreFilename("");
+                    setConfirmRestoreTypedText("");
+                    setIsConfirmRestoreModalOpen(true);
+                  }
+                }}
+                onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = ".db";
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (file) {
+                      if (!file.name.endsWith(".db")) {
+                        setError("Il file selezionato deve avere estensione .db");
+                        return;
+                      }
+                      setConfirmRestoreUploadedFile(file);
+                      setConfirmRestoreFilename("");
+                      setConfirmRestoreTypedText("");
+                      setIsConfirmRestoreModalOpen(true);
+                    }
+                  };
+                  input.click();
+                }}
+              >
+                <div className="backup-upload-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 24, height: 24 }}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <p className="backup-upload-title">Carica database esterno (.db)</p>
+                <p className="backup-upload-subtitle">Trascina qui il file o fai clic per sfogliare</p>
+              </div>
+
               <div style={{ marginTop: 24 }}>
                 <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: 12, color: "var(--color-text)" }}>
                   Copie di Sicurezza Disponibili ({backupsList.length} di 10)
@@ -3502,7 +3599,7 @@ export function DashboardClient({
 
                 {backupsList.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "24px 0", color: "var(--color-text-dim)", fontSize: "0.85rem", backgroundColor: "var(--color-bg-alt)", borderRadius: "8px", border: "1px dashed var(--color-border-dim)" }}>
-                    Nessun file di backup presente. Clicca su &quot;Esegui backup ora&quot; per iniziare.
+                    Nessun file di backup presente. Clicca su &quot;Esegui backup ora&quot; o carica un file esterno per iniziare.
                   </div>
                 ) : (
                   <div style={{ overflowX: "auto", border: "1px solid var(--color-border-dim)", borderRadius: "8px" }}>
@@ -3546,7 +3643,7 @@ export function DashboardClient({
                                   className="button secondary button-sm"
                                   type="button"
                                   disabled={backupActionLoading}
-                                  onClick={() => void handleRestoreBackup(backup.filename)}
+                                  onClick={() => handleRestoreBackup(backup.filename)}
                                   title="Ripristina database da questo backup"
                                   style={{ padding: "4px 8px", minWidth: "auto", display: "inline-flex", alignItems: "center", color: "#eab308" }}
                                 >
@@ -3576,6 +3673,106 @@ export function DashboardClient({
                     </table>
                   </div>
                 )}
+              </div>
+            </section>
+
+            {/* Card: Preferenze Visive */}
+            <section className="card">
+              <h2 className="section-title">Preferenze Visive</h2>
+              <p className="status-inline" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: 0 }}>
+                Personalizza l&apos;aspetto visivo dell&apos;interfaccia Picking Logistica.
+              </p>
+
+              <div style={{ marginTop: 18 }}>
+                <span className="field-label" style={{ display: "block", marginBottom: 12, fontSize: "0.85rem", fontWeight: 600 }}>
+                  Tema dell&apos;applicazione
+                </span>
+                
+                <div className="theme-grid">
+                  <button
+                    type="button"
+                    className={`theme-card ${theme === "light" ? "active" : ""}`}
+                    onClick={() => theme !== "light" && toggleTheme()}
+                  >
+                    <div className="theme-card-preview light">
+                      <div className="mini-dashboard">
+                        <div className="mini-header">
+                          <span className="mini-header-dot" />
+                          <span className="mini-header-line" />
+                        </div>
+                        <div className="mini-body">
+                          <div className="mini-sidebar">
+                            <span className="mini-sidebar-item active" />
+                            <span className="mini-sidebar-item" />
+                            <span className="mini-sidebar-item" />
+                          </div>
+                          <div className="mini-content-grid">
+                            <div className="mini-widget">
+                              <span className="mini-widget-title" />
+                              <span className="mini-widget-val" />
+                            </div>
+                            <div className="mini-widget">
+                              <span className="mini-widget-title" />
+                              <span className="mini-widget-val" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="theme-card-label">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                      </svg>
+                      Tema Chiaro
+                    </div>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    className={`theme-card ${theme === "dark" ? "active" : ""}`}
+                    onClick={() => theme !== "dark" && toggleTheme()}
+                  >
+                    <div className="theme-card-preview dark">
+                      <div className="mini-dashboard">
+                        <div className="mini-header">
+                          <span className="mini-header-dot" />
+                          <span className="mini-header-line" />
+                        </div>
+                        <div className="mini-body">
+                          <div className="mini-sidebar">
+                            <span className="mini-sidebar-item active" />
+                            <span className="mini-sidebar-item" />
+                            <span className="mini-sidebar-item" />
+                          </div>
+                          <div className="mini-content-grid">
+                            <div className="mini-widget">
+                              <span className="mini-widget-title" />
+                              <span className="mini-widget-val" />
+                            </div>
+                            <div className="mini-widget">
+                              <span className="mini-widget-title" />
+                              <span className="mini-widget-val" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="theme-card-label">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                      </svg>
+                      Tema Scuro
+                    </div>
+                  </button>
+                </div>
               </div>
             </section>
           </div>
@@ -3795,6 +3992,116 @@ export function DashboardClient({
             )}
           </div>
         </div>
+
+        {isConfirmRestoreModalOpen && (
+          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div className="modal-container">
+              <div className="modal-header">
+                <div className="modal-icon-wrapper danger">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
+                <h3 className="modal-title" id="modal-title">Ripristino Database</h3>
+              </div>
+              <div className="modal-body">
+                <p>
+                  <strong>ATTENZIONE!</strong> Stai per sovrascrivere l&apos;intero database corrente di Picking Logistica. 
+                  Questa operazione eliminerà permanentemente tutti gli ordini correnti, i lotti importati e lo storico recente.
+                </p>
+                <p>
+                  Sorgente ripristino: <code>{confirmRestoreFilename || confirmRestoreUploadedFile?.name}</code>
+                </p>
+                <p style={{ marginTop: 8 }}>
+                  Per procedere, digita la parola <strong>RIPRISTINA</strong> nel campo sottostante per confermare la tua identità e intenzione.
+                </p>
+                <input
+                  type="text"
+                  className="input modal-confirm-input"
+                  placeholder="Digita RIPRISTINA..."
+                  value={confirmRestoreTypedText}
+                  onChange={(e) => setConfirmRestoreTypedText(e.target.value)}
+                />
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    setIsConfirmRestoreModalOpen(false);
+                    setConfirmRestoreFilename("");
+                    setConfirmRestoreUploadedFile(null);
+                    setConfirmRestoreTypedText("");
+                  }}
+                  disabled={backupActionLoading}
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  className="button danger"
+                  disabled={confirmRestoreTypedText !== "RIPRISTINA" || backupActionLoading}
+                  onClick={async () => {
+                    if (confirmRestoreFilename) {
+                      setBackupActionLoading(true);
+                      setError("");
+                      setStatus("");
+                      setIsConfirmRestoreModalOpen(false);
+                      try {
+                        const res = await fetch("/api/settings/backup/restore", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ filename: confirmRestoreFilename })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          throw new Error(data.error ?? "Errore ripristino database");
+                        }
+                        setStatus("Database ripristinato con successo! Ricaricamento in corso...");
+                        pushActivity(`Database ripristinato dal backup ${confirmRestoreFilename}`);
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 1500);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Impossibile ripristinare il backup");
+                        setBackupActionLoading(false);
+                      }
+                    } else if (confirmRestoreUploadedFile) {
+                      setBackupActionLoading(true);
+                      setError("");
+                      setStatus("");
+                      setIsConfirmRestoreModalOpen(false);
+                      try {
+                        const formData = new FormData();
+                        formData.append("file", confirmRestoreUploadedFile);
+                        const res = await fetch("/api/settings/backup/upload", {
+                          method: "POST",
+                          body: formData
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          throw new Error(data.error ?? "Errore caricamento database");
+                        }
+                        setStatus("Database ripristinato con successo! Ricaricamento in corso...");
+                        pushActivity(`Database ripristinato da file caricato: ${confirmRestoreUploadedFile.name}`);
+                        setTimeout(() => {
+                          window.location.reload();
+                        }, 1500);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Impossibile ripristinare il database caricato");
+                        setBackupActionLoading(false);
+                      }
+                    }
+                  }}
+                >
+                  {backupActionLoading ? "Ripristino..." : "Conferma Ripristino"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
