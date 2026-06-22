@@ -47,7 +47,7 @@ export default function BatchDrawerContent({ drawerData, copiedRowId, onCopyRow 
           </div>
           <div>
             <span style={{ color: "var(--color-text-muted)" }}>Data Operazione:</span>
-            <p style={{ margin: "4px 0 0" }}>{new Date(drawerData.createdAt).toLocaleString("it-IT")}</p>
+            <p style={{ margin: "4px 0 0" }}>{new Date(drawerData.createdAt).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</p>
           </div>
         </div>
       </div>

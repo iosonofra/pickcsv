@@ -61,7 +61,7 @@ export default function OrderDrawerContent({ drawerData }: OrderDrawerContentPro
           </div>
           <div>
             <span style={{ color: "var(--color-text-muted)" }}>Creato il:</span>
-            <p style={{ margin: "4px 0 0" }}>{new Date(drawerData.createdAt).toLocaleString("it-IT")}</p>
+            <p style={{ margin: "4px 0 0" }}>{new Date(drawerData.createdAt).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}</p>
           </div>
         </div>
         
@@ -117,7 +117,7 @@ export default function OrderDrawerContent({ drawerData }: OrderDrawerContentPro
                 {drawerData.documents?.map((doc: any) => (
                   <tr key={doc.id}>
                     <td style={{ fontSize: "0.78rem" }}>{doc.fileName}</td>
-                    <td style={{ fontSize: "0.78rem" }}>{new Date(doc.createdAt).toLocaleTimeString("it-IT")}</td>
+                    <td style={{ fontSize: "0.78rem" }}>{new Date(doc.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
                     <td style={{ textAlign: "right" }}>
                       <a className="link" href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer">
                         Apri PDF

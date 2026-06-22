@@ -348,7 +348,7 @@ export function DashboardClient({
   const getAutoUploadLabel = (batch: BatchItem) => {
     const source = batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || "Windows";
     const uploadedAt = batch.autoUploadedAt ? new Date(batch.autoUploadedAt) : new Date(batch.createdAt);
-    return `Upload automatico - ${source} - ${uploadedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
+    return `Upload automatico - ${source} - ${uploadedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
   };
 
   const totalBatchPages = useMemo(() => Math.max(1, Math.ceil(filteredBatches.length / BATCH_PAGE_SIZE)), [filteredBatches.length]);
@@ -1836,7 +1836,7 @@ export function DashboardClient({
                 </section>
                 
                 <div className="kpi-updated-row" style={{ marginBottom: "16px" }}>
-                  <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) ?? ""}</p>
+                  <p className="kpi-updated">Ultimo aggiornamento: {lastUpdated?.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false }) ?? ""}</p>
                   <button
                     className="button tertiary button-sm"
                     type="button"
@@ -1907,7 +1907,7 @@ export function DashboardClient({
               ) : (
                 <ul className="activity-list">
                   {activities.map((a) => (
-                    <li key={a.id}>{`${a.message} - ${a.createdAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</li>
+                    <li key={a.id}>{`${a.message} - ${a.createdAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}`}</li>
                   ))}
                 </ul>
               )}
@@ -2723,7 +2723,7 @@ export function DashboardClient({
                     <span>Ordini: <strong>{latestAutoUploadBatch._count.orders}</strong></span>
                     <span>|</span>
                     <span className="badge auto-upload" style={{ padding: "2px 8px", fontSize: "0.68rem" }}>Upload automatico</span>
-                    <span>da {latestAutoUploadBatch.autoUploadComputerName || latestAutoUploadBatch.autoUploadUserName || latestAutoUploadBatch.autoUploadClientId || latestAutoUploadBatch.autoUploadIp || "Windows"} alle {new Date(latestAutoUploadBatch.autoUploadedAt ?? latestAutoUploadBatch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+                    <span>da {latestAutoUploadBatch.autoUploadComputerName || latestAutoUploadBatch.autoUploadUserName || latestAutoUploadBatch.autoUploadClientId || latestAutoUploadBatch.autoUploadIp || "Windows"} alle {new Date(latestAutoUploadBatch.autoUploadedAt ?? latestAutoUploadBatch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                   </span>
                 </div>
               )}
@@ -2831,7 +2831,7 @@ export function DashboardClient({
                                        </svg>
                                        <strong>Upload automatico</strong>
                                        <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
-                                         {batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"} {new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                         {batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"} {new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}
                                        </span>
                                      </div>
                                    )}
@@ -3468,7 +3468,7 @@ export function DashboardClient({
                           <circle cx="12" cy="12" r="10" />
                           <polyline points="12 6 12 12 16 14" />
                         </svg>
-                        {new Date(lastBackupTime).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        {new Date(lastBackupTime).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}
                       </>
                     ) : (
                       "Nessun backup registrato su questo dispositivo"
@@ -3522,7 +3522,7 @@ export function DashboardClient({
                               {backup.filename}
                             </td>
                             <td style={{ fontSize: "0.78rem", padding: "10px 12px", color: "var(--color-text-muted)" }}>
-                              {new Date(backup.createdAt).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              {new Date(backup.createdAt).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
                             </td>
                             <td style={{ fontSize: "0.78rem", padding: "10px 12px", color: "var(--color-text-muted)" }}>
                               {backup.sizeFormatted}

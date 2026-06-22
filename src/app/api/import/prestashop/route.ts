@@ -169,16 +169,12 @@ async function prepareOrderDetails(orderData: any, baseDomain: string, apiKey: s
 
 function formatBatchSourceName() {
   const now = new Date();
-  const dateStr = now.toLocaleDateString("it-IT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
-  const timeStr = now.toLocaleTimeString("it-IT", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-  return `PrestaShop Import (${dateStr} ${timeStr})`;
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const year = now.getFullYear();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `PrestaShop Import (${day}/${month}/${year} ${hours}:${minutes})`;
 }
 
 export async function POST(req: Request) {

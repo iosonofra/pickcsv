@@ -207,7 +207,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
   const getAutoUploadLabel = (batch: BatchItem) => {
     const source = batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || "Windows";
     const uploadedAt = batch.autoUploadedAt ? new Date(batch.autoUploadedAt) : new Date(batch.createdAt);
-    return `Upload automatico - ${source} - ${uploadedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
+    return `Upload automatico - ${source} - ${uploadedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
   };
 
   const totalBatchPages = useMemo(() => Math.max(1, Math.ceil(filteredBatches.length / BATCH_PAGE_SIZE)), [filteredBatches.length]);
@@ -560,7 +560,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
           ) : (
             <ul className="activity-list">
               {activities.map((a) => (
-                <li key={a.id}>{`${a.message} - ${a.createdAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}</li>
+                <li key={a.id}>{`${a.message} - ${a.createdAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}`}</li>
               ))}
             </ul>
           )}
@@ -725,7 +725,7 @@ export function HistoryBatchesClient({ initialBatches }: { initialBatches: Batch
                                    </svg>
                                   <strong>Upload automatico</strong>
                                   <span style={{ opacity: 0.85, fontSize: "0.68rem" }}>
-                                    &nbsp;{batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"}&nbsp;{new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                                    &nbsp;{batch.autoUploadComputerName || batch.autoUploadUserName || batch.autoUploadClientId || batch.autoUploadIp || "Windows"}&nbsp;{new Date(batch.autoUploadedAt ?? batch.createdAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", hour12: false })}
                                   </span>
                                 </div>
                               )}

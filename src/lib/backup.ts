@@ -248,7 +248,7 @@ export const checkAndRunBackup = async (): Promise<boolean> => {
 
     // Esegue il backup (il database esiste già poiché ensureDbSchema è stato completato)
     await backupDatabase();
-    console.log(`[Backup] Backup automatico ogni 24 ore completato con successo alle ${now.toLocaleString()}`);
+    console.log(`[Backup] Backup automatico ogni 24 ore completato con successo alle ${now.toLocaleString("it-IT", { hour12: false })}`);
     return true;
   } catch (error) {
     console.error("[Backup] Errore durante il backup automatico programmato:", error);
